@@ -1,3 +1,14 @@
+"""
+뷰어 클라이언트
+
+이 모듈은 Socket.IO 서버에서 전송되는 JPEG 프레임을 수신하여
+OpenCV 창에 그리드 형태로 렌더링하는 간단한 뷰어입니다.
+
+주요 기능:
+- 여러 참가자의 프레임을 받아 한 화면에 배치
+- 메인/서브 타일 크기 조정 및 레이블 표시
+"""
+
 import argparse
 import asyncio
 import base64
@@ -14,6 +25,10 @@ except ImportError:
 
 
 def parse_args() -> argparse.Namespace:
+    """명령행 인자 파서 생성
+
+    반환: argparse.Namespace (서버, 룸, 창 크기, 타일 크기 등)
+    """
     parser = argparse.ArgumentParser(description="Digital Pet room video viewer")
     parser.add_argument("--server", default="http://127.0.0.1:8000")
     parser.add_argument("--room", default="TEST_ROOM")
@@ -32,11 +47,19 @@ def parse_args() -> argparse.Namespace:
 
 
 def require_opencv() -> None:
+    """OpenCV/NumPy 설치 여부 확인
+
+    미설치 시 RuntimeError를 발생시켜 실행을 중단합니다.
+    """
     if cv2 is None or np is None:
         raise RuntimeError("OpenCV is not installed. Install requirements again before running the viewer.")
 
 
 def decode_frame(jpeg_base64: str):
+    """Base64로 인코딩된 JPEG 문자열을 디코딩하여 BGR 형식의 NumPy 배열로 반환
+
+    예외: 디코딩 실패 시 ValueError 발생
+    """
     raw = base64.b64decode(jpeg_base64)
     encoded = np.frombuffer(raw, dtype=np.uint8)
     frame = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
@@ -46,6 +69,10 @@ def decode_frame(jpeg_base64: str):
 
 
 def fit_frame(frame, width: int, height: int):
+    """프레임을 주어진 크기에 맞춰 비율을 유지하며 리사이즈하고 중앙에 배치하여 반환
+
+    반환 크기는 항상 (height, width, 3)입니다.
+    """
     src_h, src_w = frame.shape[:2]
     scale = min(width / src_w, height / src_h)
     dst_w = max(1, int(src_w * scale))
@@ -60,6 +87,10 @@ def fit_frame(frame, width: int, height: int):
 
 
 def draw_label(frame, nickname: str, is_main: bool, updated_at: str):
+    """프레임 상단에 닉네임(및 MAIN 표시)과 하단에 업데이트 시간을 그려 반환
+
+    입력 프레임을 직접 수정하여 반환합니다.
+    """
     label = nickname
     if is_main:
         label += " [MAIN]"
@@ -71,6 +102,10 @@ def draw_label(frame, nickname: str, is_main: bool, updated_at: str):
 
 
 def build_waiting_frame(width: int, height: int):
+    """프레임이 없을 때 보여줄 대기 화면 생성
+
+    가운데에 `Waiting for frames...` 텍스트를 렌더링합니다.
+    """
     frame = np.zeros((height, width, 3), dtype=np.uint8)
     cv2.putText(frame, "Waiting for frames...", (20, height // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
     return frame
@@ -86,6 +121,15 @@ def compose_grid(
     sub_width: int,
     sub_height: int,
 ):
+    """여러 참가자의 프레임을 받아 전체 캔버스(그리드)를 구성하여 반환
+
+    주요 동작:
+    - 왼쪽은 캐릭터 영역으로 예약하고 우측에 비디오 타일을 렌더링
+    - 첫 참가자를 메인 타일로 크게 보여주고, 나머지 참가자는 2열의 소타일로 배치
+    - 최대 6명까지만 렌더링
+    예외:
+    - 인자 값이 잘못되면 RuntimeError 발생
+    """
     if left_reserved_width >= canvas_width:
         raise RuntimeError("--left-reserved-width must be smaller than --canvas-width.")
 
@@ -160,6 +204,12 @@ def compose_grid(
 
 
 async def main() -> None:
+    """비동기 메인 함수: Socket.IO에 연결하고 프레임을 받아 화면에 렌더링
+
+    - `render_loop` 태스크를 생성하여 주기적으로 `compose_grid`를 호출
+    - Socket.IO 이벤트 핸들러는 수신된 프레임을 `frame_map`에 저장
+    - 사용자가 ESC 또는 'q'를 누르면 종료
+    """
     args = parse_args()
     require_opencv()
     client = socketio.AsyncClient()
