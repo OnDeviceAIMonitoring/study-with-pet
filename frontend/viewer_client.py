@@ -171,6 +171,97 @@ def compose_grid(
     return full_canvas
 
 
+def compose_group(
+    frame_map: Dict[str, dict],
+    canvas_width: int,
+    canvas_height: int,
+    left_reserved_width: int,
+    main_width: int,
+    main_height: int,
+    sub_width: int,
+    sub_height: int,
+):
+    """단체 공부용 레이아웃: 중앙에 메인(내 카메라), 오른쪽에 참가자들을 세로로 나열
+
+    - 왼쪽은 기존대로 캐릭터 영역을 유지
+    - 중앙 영역에 메인 비디오를 가운데 정렬
+    - 오른쪽에 다른 참가자들의 타일을 상하로 정렬
+    """
+    if left_reserved_width >= canvas_width:
+        raise RuntimeError("--left-reserved-width must be smaller than --canvas-width.")
+
+    right_total_width = canvas_width - left_reserved_width
+    if right_total_width <= 0:
+        raise RuntimeError("Canvas too small for right area.")
+
+    # allocate a vertical column on the far right for participant tiles
+    right_col_w = sub_width
+    center_w = right_total_width - right_col_w
+    if center_w <= 0:
+        raise RuntimeError("Not enough width for center/main area.")
+
+    # prepare canvas
+    full_canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+    full_canvas[:, :left_reserved_width] = (18, 18, 18)
+    cv2.putText(
+        full_canvas,
+        "Character Area",
+        (20, 34),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (170, 170, 170),
+        2,
+    )
+
+    right_canvas = full_canvas[:, left_reserved_width:]
+
+    if not frame_map:
+        waiting = build_waiting_frame(right_total_width, canvas_height)
+        right_canvas[:, :] = waiting
+        return full_canvas
+
+    # pick main (first is_main True), otherwise the first item
+    items = sorted(
+        frame_map.items(),
+        key=lambda item: (
+            not item[1]["is_main"],
+            item[0].lower(),
+        ),
+    )
+
+    main_nickname, main_info = items[0]
+    others = [it for it in items[1:]]
+
+    # build main tile and place centered in center_w x canvas_height
+    main_tile = fit_frame(main_info["frame"], main_width, main_height)
+    main_tile = draw_label(main_tile, main_nickname, main_info["is_main"], main_info["updated_at"])
+
+    center_area = np.zeros((canvas_height, center_w, 3), dtype=np.uint8)
+    # place main centered
+    m_h, m_w = main_tile.shape[:2]
+    y_off = (canvas_height - m_h) // 2
+    x_off = max(0, (center_w - m_w) // 2)
+    center_area[y_off:y_off + m_h, x_off:x_off + m_w] = main_tile
+
+    # build right column with others stacked vertically
+    col_area = np.zeros((canvas_height, right_col_w, 3), dtype=np.uint8)
+    max_display = max(1, canvas_height // sub_height)
+    display_items = others[:max_display]
+    total_h = len(display_items) * sub_height
+    start_y = (canvas_height - total_h) // 2
+    for idx, (nick, info) in enumerate(display_items):
+        tile = fit_frame(info["frame"], sub_width, sub_height)
+        tile = draw_label(tile, nick, info["is_main"], info["updated_at"])
+        y0 = start_y + idx * sub_height
+        col_area[y0:y0 + sub_height, 0:sub_width] = tile
+
+    # place center_area and col_area into right_canvas
+    right_canvas[:, :center_w] = center_area
+    right_canvas[:, center_w:center_w + right_col_w] = col_area
+
+    return full_canvas
+
+
 # ---- CustomTkinter GUI + background Socket.IO client ----
 class ViewerApp:
     def __init__(self, args: argparse.Namespace):
@@ -223,6 +314,7 @@ class ViewerApp:
         # Slides (frames)
         self.slide1 = ctk.CTkFrame(self.container)
         self.slide13 = ctk.CTkFrame(self.container)
+        self.slide_group = ctk.CTkFrame(self.container)
         self.slide_camera = ctk.CTkFrame(self.container)
 
         # Schedule GUI update (used for video grid if enabled later)
@@ -231,6 +323,7 @@ class ViewerApp:
         # Build slide UIs
         self._build_slide1()
         self._build_slide13()
+        self._build_group_slide()
         self._build_camera_slide()
 
         # Start with slide1 visible
@@ -258,6 +351,9 @@ class ViewerApp:
         elif slide_no == 2:
             self.slide_camera.pack(fill="both", expand=True)
             self.current_slide = 2
+        elif slide_no == 3:
+            self.slide_group.pack(fill="both", expand=True)
+            self.current_slide = 3
         elif slide_no == 13:
             self.slide13.pack(fill="both", expand=True)
             self.current_slide = 13
@@ -272,7 +368,7 @@ class ViewerApp:
 
         buttons = [
             ("개인 공부", self._on_personal_study),
-            ("단체 공부", None),
+            ("단체 공부", self._on_group_study),
             ("보유 캐릭터 (성장 현황)", self._on_show_characters),
             ("나가기", self.root.quit),
         ]
@@ -343,10 +439,36 @@ class ViewerApp:
         self.camera_thread = None
         self.latest_frame = None
 
+    def _build_group_slide(self):
+        # 단체 공부 슬라이드: 중앙에 내 카메라(메인), 오른쪽에 다른 클라이언트들 세로 나열
+        frame = self.slide_group
+        top = ctk.CTkFrame(frame)
+        top.pack(fill="x", padx=10, pady=8)
+        title = ctk.CTkLabel(top, text="단체 공부 - 방", anchor="w", font=self._make_font(18))
+        title.pack(side="left")
+        back_btn = ctk.CTkButton(top, text="돌아가기", width=80, command=self._on_group_back, font=self._make_font(12))
+        back_btn.pack(side="right")
+
+        # Image display area for composed group view
+        self.group_img_label = ctk.CTkLabel(frame, text="")
+        self.group_img_label.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # group camera uses same camera thread as personal camera (latest_frame)
+
     def _on_camera_back(self):
         # stop camera and go back to main menu
         self.stop_camera()
         self.show_slide(1)
+
+    def _on_group_back(self):
+        # stop camera and return to main menu
+        self.stop_camera()
+        self.show_slide(1)
+
+    def _on_group_study(self):
+        # show group slide and start local camera (which will be used as main)
+        self.show_slide(3)
+        self.start_camera()
 
     def start_camera(self, camera_index: int = 0):
         if self.camera_running:
@@ -395,7 +517,7 @@ class ViewerApp:
         # If no image label is present, skip (we're on menu slides)
         if not hasattr(self, "img_label"):
             return
-        # If we're on camera slide, display latest camera frame; otherwise display composed grid
+        # If we're on camera slide, display latest camera frame; group slide composes center+right; otherwise display composed grid
         if getattr(self, "current_slide", 1) == 2:
             with self.lock:
                 frame = None if self.latest_frame is None else self.latest_frame.copy()
@@ -414,6 +536,47 @@ class ViewerApp:
             # Keep a reference to avoid GC
             self.img_label.image = img_tk
             self.img_label.configure(image=img_tk)
+        elif getattr(self, "current_slide", 1) == 3:
+            # Group view: use local camera as main (injected) and remote frames from frame_map
+            with self.lock:
+                local_frame = None if self.latest_frame is None else self.latest_frame.copy()
+                frame_map_copy = dict(self.frame_map)
+            if local_frame is None:
+                # placeholder main frame if camera not ready
+                main_placeholder = build_waiting_frame(self.args.main_width, self.args.main_height)
+                frame_map_copy[self.args.name] = {
+                    "frame": main_placeholder,
+                    "is_main": True,
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                }
+            else:
+                frame_map_copy[self.args.name] = {
+                    "frame": local_frame,
+                    "is_main": True,
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                }
+
+            canvas = compose_group(
+                frame_map_copy,
+                self.args.canvas_width,
+                self.args.canvas_height,
+                self.args.left_reserved_width,
+                self.args.main_width,
+                self.args.main_height,
+                self.args.sub_width,
+                self.args.sub_height,
+            )
+            # Convert BGR to RGB
+            try:
+                rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+            except Exception:
+                rgb = canvas[:, :, ::-1]
+            pil = Image.fromarray(rgb)
+            img_tk = ImageTk.PhotoImage(pil)
+            # Keep a reference to avoid GC
+            if hasattr(self, "group_img_label"):
+                self.group_img_label.image = img_tk
+                self.group_img_label.configure(image=img_tk)
         else:
             with self.lock:
                 canvas = compose_grid(
