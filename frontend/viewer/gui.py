@@ -9,6 +9,7 @@ from datetime import datetime
 import threading
 import time
 from typing import Dict
+import json
 
 import tkinter.font as tkfont
 
@@ -30,6 +31,44 @@ from . import socketio_client
 
 
 class ViewerApp:
+    def _show_info_dialog(self, title, message):
+        """검정 배경의 클릭-투-클로즈 알림 다이얼로그"""
+        import tkinter as tk
+
+        dlg = tk.Toplevel(self.root)
+        dlg.overrideredirect(True)  # 타이틀바/X 버튼 제거
+        dlg.configure(bg="#000000")
+        dlg.attributes("-topmost", True)
+        dlg.transient(self.root)
+
+        width, height = 320, 130
+        self.root.update_idletasks()
+        root_x = self.root.winfo_rootx()
+        root_y = self.root.winfo_rooty()
+        root_w = self.root.winfo_width()
+        root_h = self.root.winfo_height()
+        x = root_x + (root_w - width) // 2
+        y = root_y + (root_h - height) // 2
+        dlg.geometry(f"{width}x{height}+{x}+{y}")
+
+        box = tk.Frame(dlg, bg="#000000", highlightthickness=1, highlightbackground="#2a2a2a")
+        box.pack(fill="both", expand=True)
+
+        title_lbl = tk.Label(box, text=title, fg="#f2f2f2", bg="#000000", font=self._make_font(13, "bold"))
+        title_lbl.pack(pady=(18, 6))
+
+        msg_lbl = tk.Label(box, text=message, fg="#d6d6d6", bg="#000000", font=self._make_font(12), wraplength=280, justify="center")
+        msg_lbl.pack(pady=(0, 14), padx=12)
+
+        # 창 또는 메시지를 클릭하면 닫힘
+        for widget in (dlg, box, title_lbl, msg_lbl):
+            widget.bind("<Button-1>", lambda _e: dlg.destroy())
+
+        dlg.grab_set()
+    
+    def get_selected_character(self):
+        # slide6에서 선택된 캐릭터 인덱스 반환 (0, 1, 2 중 하나, 선택 없으면 None)
+        return getattr(self, '_slide6_selected', None)
     def __init__(self, args):
         # 인스턴스 상태 초기화
         self.args = args
@@ -77,24 +116,283 @@ class ViewerApp:
         self.container.pack(fill="both", expand=True)
 
         self.slide1 = ctk.CTkFrame(self.container)
+        self.slide6 = ctk.CTkFrame(self.container)
         self.slide13 = ctk.CTkFrame(self.container)
+        self.slide14 = ctk.CTkFrame(self.container)  # 캐릭터 생성
         self.slide_group = ctk.CTkFrame(self.container)
         self.slide_camera = ctk.CTkFrame(self.container)
+        self._slide6_page = 0
+        self._slide13_page = 0
+        self._slide14_page = 0
 
         self._refresh_period_ms = max(10, self.args.refresh_ms)
 
         # 슬라이드 빌드
         self._build_slide1()
+        self._build_slide6()
         self._build_slide13()
+        self._build_slide14()
         self._build_group_slide()
         self._build_camera_slide()
 
+        # 초기 슬라이드 표시
         self.show_slide(1)
+    def _build_slide6(self):
+        import os
+        from PIL import Image
+        frame = self.slide6
+        top = ctk.CTkFrame(frame)
+        top.pack(fill="x", padx=10, pady=8)
+        title = ctk.CTkLabel(top, text="캐릭터 선택 (성장시킬 캐릭터)", anchor="w", font=self._make_font(20))
+        title.pack(side="left")
+        back_top_btn = ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12), command=lambda: self.show_slide(1))
+        back_top_btn.pack(side="right", padx=(0, 6))
+        def on_create_character():
+            self._slide14_page = 0
+            self.show_slide(14)
+        create_btn = ctk.CTkButton(top, text="캐릭터 생성", width=110, height=32, font=self._make_font(14), command=on_create_character)
+        create_btn.pack(side="right", padx=(0, 6))
+
+        middle = ctk.CTkFrame(frame)
+        middle.pack(fill="both", expand=True, padx=10, pady=10)
+
+        try:
+            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                characters = json.load(f)
+        except Exception:
+            characters = []
+
+        page_size = 3
+        total_pages = max(1, (len(characters) + page_size - 1) // page_size)
+        self._slide6_page = min(self._slide6_page, total_pages - 1)
+
+        def on_prev_page():
+            if self._slide6_page > 0:
+                self._slide6_page -= 1
+                self._rebuild_slide6()
+
+        def on_next_page():
+            if self._slide6_page < total_pages - 1:
+                self._slide6_page += 1
+                self._rebuild_slide6()
+
+        back_btn = ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14), command=on_prev_page)
+        back_btn.pack(side="left", padx=(0, 8))
+
+        content = ctk.CTkFrame(middle)
+        content.pack(side="left", fill="both", expand=True, padx=8)
+        content.grid_columnconfigure((0,1,2), weight=1)
+
+        next_btn = ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14), command=on_next_page)
+        next_btn.pack(side="left", padx=(8, 0))
+
+        visible_characters = characters[self._slide6_page * page_size:(self._slide6_page + 1) * page_size]
+
+        card_width = 110
+        self._slide6_selected = None
+        self._slide6_cards = []
+
+        def on_card_click(idx):
+            self._slide6_selected = idx
+            for i, c in enumerate(self._slide6_cards):
+                if i == idx:
+                    c.configure(border_width=4, border_color="#33aaff")
+                else:
+                    c.configure(border_width=0)
+            self.show_slide(3)
+            self.start_camera()
+
+        if visible_characters:
+            self._slide6_images = []
+            for col, char in enumerate(visible_characters):
+                card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
+                card.grid(row=0, column=col, padx=8, pady=8, sticky="nsew")
+                card.pack_propagate(False)
+                card.grid_propagate(False)
+                content.grid_rowconfigure(0, weight=1)
+                card.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+                def bind_all(widget, idx=col):
+                    widget.bind("<Button-1>", lambda e: on_card_click(idx))
+                    for child in getattr(widget, 'winfo_children', lambda:[])():
+                        bind_all(child, idx)
+                bind_all(card, col)
+
+                placeholder = ctk.CTkFrame(card, height=1, corner_radius=16)
+                placeholder.pack(pady=10, padx=8, fill="both", expand=True)
+                placeholder.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+                name = char.get("name", "maltese")
+                ctype = char.get("type", "baby")
+                tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
+                img_path = None
+                if os.path.isdir(tail_dir):
+                    files = sorted([f for f in os.listdir(tail_dir) if f.endswith('.png')])
+                    if files:
+                        img_path = os.path.join(tail_dir, files[0])
+
+                if img_path and os.path.exists(img_path):
+                    try:
+                        pil_img = Image.open(img_path).convert("RGBA")
+                        target_w = 140
+                        target_h = int(target_w * 650 / 430)
+                        bg = Image.new("RGBA", (target_w, target_h), (0,0,0,0))
+                        pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                        x = (target_w - pil_img.width) // 2
+                        y = (target_h - pil_img.height) // 2
+                        bg.paste(pil_img, (x, y), pil_img)
+                        ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
+                        img_label = ctk.CTkLabel(placeholder, image=ctk_img, text="")
+                        img_label.pack(expand=True)
+                        self._slide6_images.append(ctk_img)
+                        img_label.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+                    except Exception:
+                        lbl = ctk.CTkLabel(placeholder, text=char.get("display", f"캐릭터 {col+1}"), font=self._make_font(16))
+                        lbl.pack(expand=True)
+                        lbl.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+                else:
+                    lbl = ctk.CTkLabel(placeholder, text=char.get("display", f"캐릭터 {col+1}"), font=self._make_font(16))
+                    lbl.pack(expand=True)
+                    lbl.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+
+                name_lbl = ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14))
+                name_lbl.pack(pady=(6,2))
+                growth_lbl = ctk.CTkLabel(card, text=f"성장도: {char.get('growth', 0)}", font=self._make_font(12))
+                growth_lbl.pack()
+                prog = ctk.CTkProgressBar(card, width=140)
+                prog.set(char.get('growth', 0.5))
+                prog.pack(pady=8)
+
+                self._slide6_cards.append(card)
+        else:
+            empty_lbl = ctk.CTkLabel(content, text="생성된 캐릭터가 없습니다.", font=self._make_font(16))
+            empty_lbl.pack(pady=40)
 
         # 카메라 상태
         self.camera_running = False
         self.camera_thread = None
         self.latest_frame = None
+
+    def _build_slide14(self):
+        import os
+        from PIL import Image
+        frame = self.slide14
+        for widget in frame.winfo_children():
+            widget.destroy()
+        top = ctk.CTkFrame(frame)
+        top.pack(fill="x", padx=10, pady=8)
+        title = ctk.CTkLabel(top, text="캐릭터 생성", anchor="w", font=self._make_font(20))
+        title.pack(side="left")
+        back_top_btn = ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12), command=lambda: self.show_slide(6))
+        back_top_btn.pack(side="right")
+
+        middle = ctk.CTkFrame(frame)
+        middle.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # 캐릭터 후보 탐색
+        char_root = "frontend/assets/characters"
+        candidates = []
+        for cname in os.listdir(char_root):
+            baby_tail_dir = os.path.join(char_root, cname, "baby", "tail")
+            if os.path.isdir(baby_tail_dir):
+                pngs = sorted([f for f in os.listdir(baby_tail_dir) if f.endswith('.png')])
+                if pngs:
+                    candidates.append({
+                        "name": cname,
+                        "img_path": os.path.join(baby_tail_dir, pngs[0]),
+                    })
+        if not candidates:
+            lbl = ctk.CTkLabel(content, text="생성 가능한 캐릭터 이미지가 없습니다.", font=self._make_font(16))
+            lbl.pack(pady=40)
+            return
+
+        page_size = 3
+        total_pages = max(1, (len(candidates) + page_size - 1) // page_size)
+        self._slide14_page = min(self._slide14_page, total_pages - 1)
+
+        def on_prev_page():
+            if self._slide14_page > 0:
+                self._slide14_page -= 1
+                self._rebuild_slide14()
+
+        def on_next_page():
+            if self._slide14_page < total_pages - 1:
+                self._slide14_page += 1
+                self._rebuild_slide14()
+
+        back_btn = ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14), command=on_prev_page)
+        back_btn.pack(side="left", padx=(0, 8))
+
+        content = ctk.CTkFrame(middle)
+        content.pack(side="left", fill="both", expand=True, padx=8)
+        content.grid_columnconfigure((0,1,2), weight=1)
+
+        next_btn = ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14), command=on_next_page)
+        next_btn.pack(side="left", padx=(8, 0))
+
+        visible_candidates = candidates[self._slide14_page * page_size:(self._slide14_page + 1) * page_size]
+
+        self._slide14_images = []
+        card_width = 110
+
+        def on_card_click(idx):
+            try:
+                with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                    chars = json.load(f)
+            except Exception:
+                chars = []
+            sel_cand = visible_candidates[idx]
+            # 같은 캐릭터 타입이 이미 존재하는지 확인
+            if any(c.get("name") == sel_cand["name"] for c in chars):
+                self._show_info_dialog("중복 생성", f"{sel_cand['name']} 캐릭터는\n이미 생성되어 있습니다.")
+                return
+            # 새 캐릭터 생성
+            new_char = {
+                "name": sel_cand["name"],
+                "type": "baby",
+                "growth": 0.0
+            }
+            chars.append(new_char)
+            with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+                json.dump(chars, f, ensure_ascii=False, indent=2)
+            self._rebuild_slide6()
+
+        for col, cand in enumerate(visible_candidates):
+            card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
+            card.grid(row=0, column=col, padx=8, pady=8, sticky="nsew")
+            card.pack_propagate(False)
+            card.grid_propagate(False)
+            content.grid_rowconfigure(0, weight=1)
+            card.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+            def bind_all(widget, idx=col):
+                widget.bind("<Button-1>", lambda e: on_card_click(idx))
+                for child in getattr(widget, 'winfo_children', lambda:[])():
+                    bind_all(child, idx)
+            bind_all(card, col)
+
+            placeholder = ctk.CTkFrame(card, height=1, corner_radius=16)
+            placeholder.pack(pady=10, padx=8, fill="both", expand=True)
+            placeholder.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+            
+            try:
+                pil_img = Image.open(cand["img_path"]).convert("RGBA")
+                target_w = 140
+                target_h = int(target_w * 650 / 430)
+                bg = Image.new("RGBA", (target_w, target_h), (0,0,0,0))
+                pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                x = (target_w - pil_img.width) // 2
+                y = (target_h - pil_img.height) // 2
+                bg.paste(pil_img, (x, y), pil_img)
+                ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
+                img_label = ctk.CTkLabel(placeholder, image=ctk_img, text="")
+                img_label.pack(expand=True)
+                self._slide14_images.append(ctk_img)
+                img_label.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+            except Exception:
+                lbl = ctk.CTkLabel(placeholder, text=cand["name"], font=self._make_font(16))
+                lbl.pack(expand=True)
+                lbl.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
+
+            name_lbl = ctk.CTkLabel(card, text=cand["name"], font=self._make_font(14))
+            name_lbl.pack(pady=(6,2))
 
     def start(self):
         # Socket.IO 백그라운드 시작
@@ -118,9 +416,16 @@ class ViewerApp:
         elif slide_no == 3:
             self.slide_group.pack(fill="both", expand=True)
             self.current_slide = 3
+        elif slide_no == 6:
+            self.slide6.pack(fill="both", expand=True)
+            self.current_slide = 6
         elif slide_no == 13:
             self.slide13.pack(fill="both", expand=True)
             self.current_slide = 13
+        elif slide_no == 14:
+            self._build_slide14()
+            self.slide14.pack(fill="both", expand=True)
+            self.current_slide = 14
 
     def _build_slide1(self):
         frame = self.slide1
@@ -146,36 +451,123 @@ class ViewerApp:
         top.pack(fill="x", padx=10, pady=8)
         title = ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20))
         title.pack(side="left")
-        back_btn = ctk.CTkButton(top, text="<", width=40, command=lambda: self.show_slide(1), font=self._make_font(14))
-        back_btn.pack(side="right")
+        back_top_btn = ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12), command=lambda: self.show_slide(1))
+        back_top_btn.pack(side="right")
 
-        content = ctk.CTkFrame(frame)
-        content.pack(fill="both", expand=True, padx=20, pady=10)
+        middle = ctk.CTkFrame(frame)
+        middle.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # 로컬 DB에서 캐릭터 목록 로드
+        try:
+            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                characters = json.load(f)
+        except Exception:
+            characters = []
+
+        page_size = 3
+        total_pages = max(1, (len(characters) + page_size - 1) // page_size)
+        self._slide13_page = min(self._slide13_page, total_pages - 1)
+
+        def on_prev_page():
+            if self._slide13_page > 0:
+                self._slide13_page -= 1
+                self._rebuild_slide13()
+
+        def on_next_page():
+            # 더 렌더링할 캐릭터가 있을 때만 다음 페이지로 이동
+            if self._slide13_page < total_pages - 1:
+                self._slide13_page += 1
+                self._rebuild_slide13()
+
+        back_btn = ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14), command=on_prev_page)
+        back_btn.pack(side="left", padx=(0, 8))
+
+        content = ctk.CTkFrame(middle)
+        content.pack(side="left", fill="both", expand=True, padx=8)
         content.grid_columnconfigure((0,1,2), weight=1)
 
-        card_width = 260
-        for col in range(3):
-            card = ctk.CTkFrame(content, width=card_width, height=380, corner_radius=8)
-            card.grid(row=0, column=col, padx=12, pady=8, sticky="nsew")
-            placeholder = ctk.CTkFrame(card, height=220, corner_radius=16)
-            placeholder.pack(pady=12, padx=12, fill="x")
-            lbl = ctk.CTkLabel(placeholder, text="캐릭터", font=self._make_font(16))
-            lbl.place(relx=0.5, rely=0.5, anchor="center")
+        next_btn = ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14), command=on_next_page)
+        next_btn.pack(side="left", padx=(8, 0))
 
-            name_lbl = ctk.CTkLabel(card, text="캐릭터 이름", font=self._make_font(14))
-            name_lbl.pack(pady=(8,2))
-            growth_lbl = ctk.CTkLabel(card, text="성장도", font=self._make_font(12))
+        visible_characters = characters[self._slide13_page * page_size:(self._slide13_page + 1) * page_size]
+
+        card_width = 110  # 카드 전체 폭 더 줄임
+        import os
+        from PIL import Image, ImageTk
+
+
+        # 이미지 참조 유지용 리스트
+        self._slide13_images = []
+        for col, char in enumerate(visible_characters):
+            card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
+            card.grid(row=0, column=col, padx=8, pady=8, sticky="nsew")
+            # 카드가 content 영역을 세로로 가득 채우도록 확장
+            card.pack_propagate(False)
+            card.grid_propagate(False)
+            content.grid_rowconfigure(0, weight=1)
+            # placeholder도 카드 높이에 맞춰 꽉 차게
+            placeholder = ctk.CTkFrame(card, height=1, corner_radius=16)
+            placeholder.pack(pady=10, padx=8, fill="both", expand=True)
+
+            # placeholder 내부 위젯 제거
+            for w in placeholder.winfo_children():
+                w.destroy()
+
+            # 이미지 경로 조합
+            name = char.get("name", "maltese")
+            ctype = char.get("type", "baby")
+            tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
+            img_path = None
+            if os.path.isdir(tail_dir):
+                files = sorted([f for f in os.listdir(tail_dir) if f.endswith('.png')])
+                if files:
+                    img_path = os.path.join(tail_dir, files[0])
+
+            if img_path and os.path.exists(img_path):
+                try:
+                    pil_img = Image.open(img_path).convert("RGBA")
+                    # 430x650 비율 유지 썸네일
+                    target_w = 140
+                    target_h = int(target_w * 650 / 430)
+                    bg = Image.new("RGBA", (target_w, target_h), (0,0,0,0))
+                    pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                    # 중앙 배치
+                    x = (target_w - pil_img.width) // 2
+                    y = (target_h - pil_img.height) // 2
+                    bg.paste(pil_img, (x, y), pil_img)
+                    ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
+                    img_label = ctk.CTkLabel(placeholder, image=ctk_img, text="")
+                    img_label.pack(expand=True)
+                    self._slide13_images.append(ctk_img)
+                except Exception as e:
+                    lbl = ctk.CTkLabel(placeholder, text=char.get("display", "캐릭터"), font=self._make_font(16))
+                    lbl.pack(expand=True)
+            else:
+                lbl = ctk.CTkLabel(placeholder, text=char.get("display", "캐릭터"), font=self._make_font(16))
+                lbl.pack(expand=True)
+
+            name_lbl = ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14))
+            name_lbl.pack(pady=(6,2))
+            growth_lbl = ctk.CTkLabel(card, text=f"성장도: {char.get('growth', 0)}", font=self._make_font(12))
             growth_lbl.pack()
-            prog = ctk.CTkProgressBar(card, width=200)
-            prog.set(0.5)
-            prog.pack(pady=10)
+            prog = ctk.CTkProgressBar(card, width=140)
+            prog.set(char.get('growth', 0.5))
+            prog.pack(pady=8)
 
     def _on_show_characters(self):
+        self._slide13_page = 0
+        self._rebuild_slide13()
         self.show_slide(13)
 
+    def _rebuild_slide13(self):
+        for widget in self.slide13.winfo_children():
+            widget.destroy()
+        self._build_slide13()
+
     def _on_personal_study(self):
-        self.show_slide(2)
-        self.start_camera()
+        # 캐릭터가 없으면 카드 미표시
+        self._rebuild_slide6()
+        self.show_slide(6)
 
     def _build_camera_slide(self):
         frame = self.slide_camera
@@ -210,8 +602,22 @@ class ViewerApp:
         self.show_slide(1)
 
     def _on_group_study(self):
-        self.show_slide(3)
-        self.start_camera()
+        # 캐릭터가 없으면 카드 미표시
+        self._rebuild_slide6()
+        self.show_slide(6)
+
+    def _rebuild_slide6(self):
+        # slide6 프레임을 새로 빌드 (캐릭터 변경 반영)
+        for widget in self.slide6.winfo_children():
+            widget.destroy()
+        self._build_slide6()
+        self.show_slide(6)
+
+    def _rebuild_slide14(self):
+        for widget in self.slide14.winfo_children():
+            widget.destroy()
+        self._build_slide14()
+        self.show_slide(14)
 
     def start_camera(self, camera_index: int = 0):
         if self.camera_running:
