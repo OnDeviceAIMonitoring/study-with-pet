@@ -1,35 +1,39 @@
 """
-뷰어 클라이언트
+뷰어 클라이언트 (CustomTkinter 버전)
 
 이 모듈은 Socket.IO 서버에서 전송되는 JPEG 프레임을 수신하여
-OpenCV 창에 그리드 형태로 렌더링하는 간단한 뷰어입니다.
+CustomTkinter GUI 창에 그리드 형태로 렌더링합니다.
 
-주요 기능:
-- 여러 참가자의 프레임을 받아 한 화면에 배치
-- 메인/서브 타일 크기 조정 및 레이블 표시
+- 요구: OpenCV, NumPy, Pillow, python-socketio, customtkinter
+- 실행 예: python frontend/viewer_client.py --server http://127.0.0.1:8000 --room TEST_ROOM --name viewer_user
 """
 
 import argparse
 import asyncio
 import base64
 from datetime import datetime
+import threading
+from typing import Dict
+import time
 
 import socketio
+import tkinter.font as tkfont
 
 try:
     import cv2
     import numpy as np
 except ImportError:
-    cv2 = None
-    np = None
+    raise RuntimeError("OpenCV and NumPy are required. Install requirements before running the viewer.")
+
+try:
+    import customtkinter as ctk
+    from PIL import Image, ImageTk
+except Exception as exc:
+    raise RuntimeError("customtkinter and Pillow are required. Install them to run the GUI: pip install customtkinter pillow")
 
 
 def parse_args() -> argparse.Namespace:
-    """명령행 인자 파서 생성
-
-    반환: argparse.Namespace (서버, 룸, 창 크기, 타일 크기 등)
-    """
-    parser = argparse.ArgumentParser(description="Digital Pet room video viewer")
+    parser = argparse.ArgumentParser(description="Digital Pet room video viewer (CustomTkinter)")
     parser.add_argument("--server", default="http://127.0.0.1:8000")
     parser.add_argument("--room", default="TEST_ROOM")
     parser.add_argument("--name", default="viewer_user")
@@ -46,20 +50,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def require_opencv() -> None:
-    """OpenCV/NumPy 설치 여부 확인
-
-    미설치 시 RuntimeError를 발생시켜 실행을 중단합니다.
-    """
-    if cv2 is None or np is None:
-        raise RuntimeError("OpenCV is not installed. Install requirements again before running the viewer.")
-
-
 def decode_frame(jpeg_base64: str):
-    """Base64로 인코딩된 JPEG 문자열을 디코딩하여 BGR 형식의 NumPy 배열로 반환
-
-    예외: 디코딩 실패 시 ValueError 발생
-    """
     raw = base64.b64decode(jpeg_base64)
     encoded = np.frombuffer(raw, dtype=np.uint8)
     frame = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
@@ -69,10 +60,6 @@ def decode_frame(jpeg_base64: str):
 
 
 def fit_frame(frame, width: int, height: int):
-    """프레임을 주어진 크기에 맞춰 비율을 유지하며 리사이즈하고 중앙에 배치하여 반환
-
-    반환 크기는 항상 (height, width, 3)입니다.
-    """
     src_h, src_w = frame.shape[:2]
     scale = min(width / src_w, height / src_h)
     dst_w = max(1, int(src_w * scale))
@@ -87,10 +74,6 @@ def fit_frame(frame, width: int, height: int):
 
 
 def draw_label(frame, nickname: str, is_main: bool, updated_at: str):
-    """프레임 상단에 닉네임(및 MAIN 표시)과 하단에 업데이트 시간을 그려 반환
-
-    입력 프레임을 직접 수정하여 반환합니다.
-    """
     label = nickname
     if is_main:
         label += " [MAIN]"
@@ -102,17 +85,13 @@ def draw_label(frame, nickname: str, is_main: bool, updated_at: str):
 
 
 def build_waiting_frame(width: int, height: int):
-    """프레임이 없을 때 보여줄 대기 화면 생성
-
-    가운데에 `Waiting for frames...` 텍스트를 렌더링합니다.
-    """
     frame = np.zeros((height, width, 3), dtype=np.uint8)
     cv2.putText(frame, "Waiting for frames...", (20, height // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
     return frame
 
 
 def compose_grid(
-    frame_map: dict[str, dict],
+    frame_map: Dict[str, dict],
     canvas_width: int,
     canvas_height: int,
     left_reserved_width: int,
@@ -121,15 +100,6 @@ def compose_grid(
     sub_width: int,
     sub_height: int,
 ):
-    """여러 참가자의 프레임을 받아 전체 캔버스(그리드)를 구성하여 반환
-
-    주요 동작:
-    - 왼쪽은 캐릭터 영역으로 예약하고 우측에 비디오 타일을 렌더링
-    - 첫 참가자를 메인 타일로 크게 보여주고, 나머지 참가자는 2열의 소타일로 배치
-    - 최대 6명까지만 렌더링
-    예외:
-    - 인자 값이 잘못되면 RuntimeError 발생
-    """
     if left_reserved_width >= canvas_width:
         raise RuntimeError("--left-reserved-width must be smaller than --canvas-width.")
 
@@ -145,7 +115,6 @@ def compose_grid(
     )[:6]
 
     full_canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
-    # Left side is intentionally reserved for a character area in the next phase.
     full_canvas[:, :left_reserved_width] = (18, 18, 18)
     cv2.putText(
         full_canvas,
@@ -165,7 +134,6 @@ def compose_grid(
         right_canvas[:, :] = waiting
         return full_canvas
 
-    # Keep one participant as a large main tile and render all others in smaller tiles.
     main_nickname, main_info = items[0]
     sub_items = items[1:]
 
@@ -188,7 +156,7 @@ def compose_grid(
         row = index // sub_columns
         col = index % sub_columns
         tile = fit_frame(info["frame"], sub_width, sub_height)
-        tile = draw_label(tile, nickname, info["is_main"], info["updated_at"])
+        tile = draw_label(tile, nickname, info["is_main"], info["updated_at"]) 
         y_start = row * sub_height
         x_start = main_width + (col * sub_width)
         video_area[y_start:y_start + sub_height, x_start:x_start + sub_width] = tile
@@ -203,121 +171,329 @@ def compose_grid(
     return full_canvas
 
 
-async def main() -> None:
-    """비동기 메인 함수: Socket.IO에 연결하고 프레임을 받아 화면에 렌더링
+# ---- CustomTkinter GUI + background Socket.IO client ----
+class ViewerApp:
+    def __init__(self, args: argparse.Namespace):
+        self.args = args
+        self.frame_map: Dict[str, dict] = {}
+        self.lock = threading.Lock()
+        self.sio = socketio.AsyncClient()
+        self.stop_event = threading.Event()
 
-    - `render_loop` 태스크를 생성하여 주기적으로 `compose_grid`를 호출
-    - Socket.IO 이벤트 핸들러는 수신된 프레임을 `frame_map`에 저장
-    - 사용자가 ESC 또는 'q'를 누르면 종료
-    """
-    args = parse_args()
-    require_opencv()
-    client = socketio.AsyncClient()
-    frame_map: dict[str, dict] = {}
-    stop_event = asyncio.Event()
-    # Create the OpenCV window with GUI_NORMAL to avoid the expanded toolbar/menu
-    # and set its initial size to the canvas dimensions.
-    cv2.namedWindow(args.window_title, cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_NORMAL)
-    cv2.resizeWindow(args.window_title, args.canvas_width, args.canvas_height)
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("dark-blue")
 
-    async def render_loop() -> None:
-        while not stop_event.is_set():
-            canvas = compose_grid(
-                frame_map,
-                args.canvas_width,
-                args.canvas_height,
-                args.left_reserved_width,
-                args.main_width,
-                args.main_height,
-                args.sub_width,
-                args.sub_height,
-            )
-            cv2.imshow(args.window_title, canvas)
-            key = cv2.waitKey(1) & 0xFF
-            if key in (27, ord("q")):
-                stop_event.set()
+        self.root = ctk.CTk()
+        self.root.title(self.args.window_title)
+        self.root.geometry(f"{self.args.canvas_width}x{self.args.canvas_height}")
+
+        # detect a font family that supports Korean characters
+        families = list(tkfont.families())
+        preferred = [
+            "Noto Sans CJK KR",
+            "NotoSansCJKkr",
+            "NanumGothic",
+            "Nanum Gothic",
+            "Malgun Gothic",
+            "Apple SD Gothic Neo",
+            "Arial Unicode MS",
+            "DejaVu Sans",
+        ]
+        self.font_family = None
+        for name in preferred:
+            for fam in families:
+                if name.lower() in fam.lower():
+                    self.font_family = fam
+                    break
+            if self.font_family:
                 break
-            await asyncio.sleep(args.refresh_ms / 1000)
+        if not self.font_family:
+            # fallback to the first available family
+            self.font_family = families[0] if families else "TkDefaultFont"
 
-    @client.event
-    async def connect():
-        print("[viewer] connected")
-        await client.emit(
-            "join_room",
-            {
-                "room_code": args.room,
-                "nickname": args.name,
-            },
-        )
-        await client.emit(
-            "status_update",
-            {
-                "room_code": args.room,
-                "nickname": args.name,
-                "state": "viewer",
-                "timestamp": datetime.now().isoformat(timespec="seconds"),
-            },
-        )
+        def make_font(size: int, weight: str = "normal"):
+            return (self.font_family, size, weight)
 
-    @client.on("member_list")
-    async def on_member_list(data):
-        print(f"[viewer] member_list: {data}")
+        self._make_font = make_font
 
-    @client.on("member_left")
-    async def on_member_left(data):
-        nickname = data.get("nickname")
-        if nickname:
-            frame_map.pop(nickname, None)
-        print(f"[viewer] member_left: {data}")
+        # Container for slides
+        self.container = ctk.CTkFrame(self.root)
+        self.container.pack(fill="both", expand=True)
 
-    @client.on("join_failed")
-    async def on_join_failed(data):
-        print(f"[viewer] join_failed: {data}")
-        stop_event.set()
+        # Slides (frames)
+        self.slide1 = ctk.CTkFrame(self.container)
+        self.slide13 = ctk.CTkFrame(self.container)
+        self.slide_camera = ctk.CTkFrame(self.container)
 
-    @client.on("room_video")
-    async def on_room_video(data):
-        nickname = data.get("nickname", "unknown")
-        jpeg_base64 = data.get("jpeg_base64", "")
-        if not jpeg_base64:
+        # Schedule GUI update (used for video grid if enabled later)
+        self._refresh_period_ms = max(10, self.args.refresh_ms)
+
+        # Build slide UIs
+        self._build_slide1()
+        self._build_slide13()
+        self._build_camera_slide()
+
+        # Start with slide1 visible
+        self.show_slide(1)
+
+    def start(self):
+        # Start socketio background thread
+        t = threading.Thread(target=self._start_socketio_loop, daemon=True)
+        t.start()
+        # Start GUI update loop
+        self._schedule_update()
+        # Start Tk mainloop (must be in main thread)
+        try:
+            self.root.mainloop()
+        finally:
+            self.stop_event.set()
+
+    def show_slide(self, slide_no: int):
+        # simple slide switcher
+        for widget in self.container.winfo_children():
+            widget.pack_forget()
+        if slide_no == 1:
+            self.slide1.pack(fill="both", expand=True)
+            self.current_slide = 1
+        elif slide_no == 2:
+            self.slide_camera.pack(fill="both", expand=True)
+            self.current_slide = 2
+        elif slide_no == 13:
+            self.slide13.pack(fill="both", expand=True)
+            self.current_slide = 13
+
+    def _build_slide1(self):
+        # Large centered title and vertical buttons
+        frame = self.slide1
+        frame.grid_columnconfigure(0, weight=1)
+
+        title = ctk.CTkLabel(frame, text="Study With Pet", font=self._make_font(36))
+        title.grid(row=0, column=0, pady=(40, 20))
+
+        buttons = [
+            ("개인 공부", self._on_personal_study),
+            ("단체 공부", None),
+            ("보유 캐릭터 (성장 현황)", self._on_show_characters),
+            ("나가기", self.root.quit),
+        ]
+
+        for i, (label, cmd) in enumerate(buttons, start=1):
+            btn = ctk.CTkButton(frame, text=label, width=600, height=48, command=cmd, font=self._make_font(16))
+            btn.grid(row=i, column=0, pady=12, padx=20)
+
+    def _build_slide13(self):
+        frame = self.slide13
+        # Top bar: title left, back arrow right
+        top = ctk.CTkFrame(frame)
+        top.pack(fill="x", padx=10, pady=8)
+        title = ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20))
+        title.pack(side="left")
+        back_btn = ctk.CTkButton(top, text="<", width=40, command=lambda: self.show_slide(1), font=self._make_font(14))
+        back_btn.pack(side="right")
+
+        # Content: three character cards centered
+        content = ctk.CTkFrame(frame)
+        content.pack(fill="both", expand=True, padx=20, pady=10)
+        content.grid_columnconfigure((0,1,2), weight=1)
+
+        card_width = 260
+        for col in range(3):
+            card = ctk.CTkFrame(content, width=card_width, height=380, corner_radius=8)
+            card.grid(row=0, column=col, padx=12, pady=8, sticky="nsew")
+            # inner placeholder box
+            placeholder = ctk.CTkFrame(card, height=220, corner_radius=16)
+            placeholder.pack(pady=12, padx=12, fill="x")
+            lbl = ctk.CTkLabel(placeholder, text="캐릭터", font=self._make_font(16))
+            lbl.place(relx=0.5, rely=0.5, anchor="center")
+
+            name_lbl = ctk.CTkLabel(card, text="캐릭터 이름", font=self._make_font(14))
+            name_lbl.pack(pady=(8,2))
+            growth_lbl = ctk.CTkLabel(card, text="성장도", font=self._make_font(12))
+            growth_lbl.pack()
+            # progress bar
+            prog = ctk.CTkProgressBar(card, width=200)
+            prog.set(0.5)
+            prog.pack(pady=10)
+
+
+    def _on_show_characters(self):
+        self.show_slide(13)
+
+    def _on_personal_study(self):
+        # show camera slide and start camera capture
+        self.show_slide(2)
+        self.start_camera()
+
+    def _build_camera_slide(self):
+        frame = self.slide_camera
+        # Top bar with back button
+        top = ctk.CTkFrame(frame)
+        top.pack(fill="x", padx=10, pady=8)
+        title = ctk.CTkLabel(top, text="개인 공부 - 카메라", anchor="w", font=self._make_font(18))
+        title.pack(side="left")
+        back_btn = ctk.CTkButton(top, text="돌아가기", width=80, command=self._on_camera_back, font=self._make_font(12))
+        back_btn.pack(side="right")
+
+        # Image display area
+        self.img_label = ctk.CTkLabel(frame, text="")
+        self.img_label.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Camera control state
+        self.camera_running = False
+        self.camera_thread = None
+        self.latest_frame = None
+
+    def _on_camera_back(self):
+        # stop camera and go back to main menu
+        self.stop_camera()
+        self.show_slide(1)
+
+    def start_camera(self, camera_index: int = 0):
+        if self.camera_running:
             return
+        self.camera_running = True
+
+        def cam_loop():
+            cap = cv2.VideoCapture(camera_index)
+            # try to set resolution
+            try:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.args.canvas_width - self.args.left_reserved_width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.args.canvas_height)
+            except Exception:
+                pass
+            while self.camera_running:
+                ret, frame = cap.read()
+                if not ret:
+                    time.sleep(0.05)
+                    continue
+                with self.lock:
+                    self.latest_frame = frame.copy()
+                time.sleep(0.01)
+            try:
+                cap.release()
+            except Exception:
+                pass
+
+        self.camera_thread = threading.Thread(target=cam_loop, daemon=True)
+        self.camera_thread.start()
+
+    def stop_camera(self):
+        if not self.camera_running:
+            return
+        self.camera_running = False
+        if self.camera_thread is not None:
+            self.camera_thread.join(timeout=1.0)
+            self.camera_thread = None
+
+    def _schedule_update(self):
+        # Only update image if an image widget exists (future video view)
+        if hasattr(self, "img_label"):
+            self._update_image()
+        self.root.after(self._refresh_period_ms, self._schedule_update)
+
+    def _update_image(self):
+        # If no image label is present, skip (we're on menu slides)
+        if not hasattr(self, "img_label"):
+            return
+        # If we're on camera slide, display latest camera frame; otherwise display composed grid
+        if getattr(self, "current_slide", 1) == 2:
+            with self.lock:
+                frame = None if self.latest_frame is None else self.latest_frame.copy()
+            if frame is None:
+                # show waiting text as an image
+                canvas = build_waiting_frame(self.args.canvas_width, self.args.canvas_height)
+                rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+                pil = Image.fromarray(rgb)
+            else:
+                try:
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                except Exception:
+                    rgb = frame[:, :, ::-1]
+                pil = Image.fromarray(rgb)
+            img_tk = ImageTk.PhotoImage(pil)
+            # Keep a reference to avoid GC
+            self.img_label.image = img_tk
+            self.img_label.configure(image=img_tk)
+        else:
+            with self.lock:
+                canvas = compose_grid(
+                    self.frame_map,
+                    self.args.canvas_width,
+                    self.args.canvas_height,
+                    self.args.left_reserved_width,
+                    self.args.main_width,
+                    self.args.main_height,
+                    self.args.sub_width,
+                    self.args.sub_height,
+                )
+            # Convert BGR to RGB
+            try:
+                rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+            except Exception:
+                rgb = canvas[:, :, ::-1]
+            pil = Image.fromarray(rgb)
+            img_tk = ImageTk.PhotoImage(pil)
+            # Keep a reference to avoid GC
+            # If an img_label exists (e.g., camera slide), update it; otherwise ignore
+            if hasattr(self, "img_label"):
+                self.img_label.image = img_tk
+                self.img_label.configure(image=img_tk)
+
+    def _start_socketio_loop(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self._socketio_main())
+
+    async def _socketio_main(self):
+        @self.sio.event
+        async def connect():
+            print("[viewer:ctk] connected")
+            await self.sio.emit("join_room", {"room_code": self.args.room, "nickname": self.args.name})
+            await self.sio.emit(
+                "status_update",
+                {
+                    "room_code": self.args.room,
+                    "nickname": self.args.name,
+                    "state": "viewer",
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                },
+            )
+
+        @self.sio.on("room_video")
+        async def on_room_video(data):
+            nickname = data.get("nickname", "unknown")
+            jpeg_base64 = data.get("jpeg_base64", "")
+            if not jpeg_base64:
+                return
+            try:
+                frame = decode_frame(jpeg_base64)
+            except Exception as exc:
+                print(f"[viewer:ctk] failed to decode frame from {nickname}: {exc}")
+                return
+            with self.lock:
+                self.frame_map[nickname] = {
+                    "frame": frame,
+                    "is_main": bool(data.get("is_main", False)),
+                    "updated_at": data.get("ts", datetime.now().isoformat(timespec="seconds")),
+                }
+
+        @self.sio.event
+        async def disconnect():
+            print("[viewer:ctk] disconnected")
 
         try:
-            frame = decode_frame(jpeg_base64)
+            await self.sio.connect(self.args.server, socketio_path="socket.io")
+            # wait until stop_event is set
+            while not self.stop_event.is_set():
+                await asyncio.sleep(0.1)
         except Exception as exc:
-            print(f"[viewer] failed to decode frame from {nickname}: {exc}")
-            return
-
-        frame_map[nickname] = {
-            "frame": frame,
-            "is_main": bool(data.get("is_main", False)),
-            "updated_at": data.get("ts", datetime.now().isoformat(timespec="seconds")),
-        }
-
-    @client.event
-    async def disconnect():
-        print("[viewer] disconnected")
-
-    render_task = None
-    try:
-        await client.connect(args.server, socketio_path="socket.io")
-        render_task = asyncio.create_task(render_loop())
-
-        if args.duration > 0:
-            try:
-                await asyncio.wait_for(stop_event.wait(), timeout=args.duration)
-            except asyncio.TimeoutError:
-                stop_event.set()
-        else:
-            await stop_event.wait()
-    finally:
-        stop_event.set()
-        if render_task is not None:
-            await render_task
-        if client.connected:
-            await client.disconnect()
-        cv2.destroyAllWindows()
+            print("Socket.IO error:", exc)
+        finally:
+            if self.sio.connected:
+                await self.sio.disconnect()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    args = parse_args()
+    app = ViewerApp(args)
+    app.start()
