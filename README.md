@@ -31,6 +31,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+#### 한글 폰트 설치
+```
+sudo apt update
+sudo apt install -y fonts-nanum fonts-unfonts-core
+sudo fc-cache -fv
+sudo reboot
+```
+
 Windows PowerShell:
 
 ```powershell
