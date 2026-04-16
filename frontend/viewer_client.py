@@ -215,6 +215,10 @@ async def main() -> None:
     client = socketio.AsyncClient()
     frame_map: dict[str, dict] = {}
     stop_event = asyncio.Event()
+    # Create the OpenCV window with GUI_NORMAL to avoid the expanded toolbar/menu
+    # and set its initial size to the canvas dimensions.
+    cv2.namedWindow(args.window_title, cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_NORMAL)
+    cv2.resizeWindow(args.window_title, args.canvas_width, args.canvas_height)
 
     async def render_loop() -> None:
         while not stop_event.is_set():
