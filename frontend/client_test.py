@@ -1,3 +1,11 @@
+"""
+클라이언트 테스트 도구
+
+이 모듈은 Socket.IO 기반의 간단한 테스트 클라이언트를 제공합니다.
+명령행 옵션으로 가짜 또는 카메라 기반의 JPEG 프레임을 생성하여
+서버로 전송하는 용도로 사용됩니다.
+"""
+
 import argparse
 import asyncio
 import base64
@@ -27,6 +35,10 @@ SUB_PROFILE = {
 
 
 def parse_args() -> argparse.Namespace:
+    """명령행 인자 파서 생성
+
+    반환: argparse.Namespace (서버 주소, 룸, 이름, 비디오 전송 옵션 등)
+    """
     parser = argparse.ArgumentParser(description="Digital Pet Socket.IO client test")
     parser.add_argument("--server", default="http://127.0.0.1:8000")
     parser.add_argument("--room", default="TEST_ROOM")
@@ -46,6 +58,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_video_policy(args: argparse.Namespace) -> tuple[int, int, int]:
+    """비디오 전송 정책(해상도/프레임레이트) 결정
+
+    우선순위: 명령행으로 지정된 `--frame-width/height/fps` > 프로파일
+    반환: (width, height, fps)
+    예외: 잘못된 값이면 RuntimeError 발생
+    """
     profile = MAIN_PROFILE if args.is_main else SUB_PROFILE
     width = args.frame_width if args.frame_width > 0 else profile["width"]
     height = args.frame_height if args.frame_height > 0 else profile["height"]
@@ -60,6 +78,11 @@ def resolve_video_policy(args: argparse.Namespace) -> tuple[int, int, int]:
 
 
 def build_fake_jpeg_base64(name: str, frame_idx: int, width: int, height: int) -> str:
+    """테스트용 가짜 JPEG 프레임을 생성하여 base64 문자열로 반환
+
+    - OpenCV/NumPy 필요
+    - 화면에 이름, 프레임 인덱스, 현재 시각을 렌더링
+    """
     if cv2 is None or np is None:
         raise RuntimeError("OpenCV and numpy are required to build fake JPEG frames.")
 
@@ -88,6 +111,10 @@ def build_fake_jpeg_base64(name: str, frame_idx: int, width: int, height: int) -
 
 
 def open_camera(args: argparse.Namespace, width: int, height: int):
+    """카메라 디바이스를 열고 VideoCapture 객체 반환
+
+    예외: OpenCV 미설치 또는 디바이스를 열 수 없을 때 RuntimeError 발생
+    """
     if cv2 is None:
         raise RuntimeError("OpenCV is not installed. Install requirements again to use --use-camera.")
 
@@ -104,6 +131,10 @@ def open_camera(args: argparse.Namespace, width: int, height: int):
 
 
 def build_camera_frame_base64(capture, jpeg_quality: int) -> str:
+    """카메라로부터 프레임을 읽어 JPEG base64로 인코딩하여 반환
+
+    예외: 프레임 읽기 실패 또는 JPEG 인코딩 실패시 RuntimeError 발생
+    """
     ok, frame = capture.read()
     if not ok or frame is None:
         raise RuntimeError("Failed to read a frame from the camera.")
@@ -120,6 +151,12 @@ def build_camera_frame_base64(capture, jpeg_quality: int) -> str:
 
 
 async def main() -> None:
+    """비동기 메인 함수: 서버 연결, 상태 전송,(선택적으로) 비디오 전송 루프 실행
+
+    - 명령행 인자 파싱
+    - Socket.IO 클라이언트 연결 및 이벤트 핸들러 등록
+    - `--send-video`일 경우 send_video_loop 태스크 생성
+    """
     args = parse_args()
     client = socketio.AsyncClient()
     running = True

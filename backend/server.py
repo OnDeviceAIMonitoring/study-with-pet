@@ -1,3 +1,16 @@
+"""
+서버: Socket.IO 기반의 간단한 디지털 펫 통신 테스트 서버
+
+이 모듈은 FastAPI와 python-socketio를 사용하여 실시간 룸(join/leave),
+비디오 프레임 전송, 오디오 상태 토글 등의 동작을 처리합니다.
+
+주요 전역 구조:
+- `SID_INFO`: sid(클라이언트 식별자) -> room/nickname 매핑
+- `ROOM_MEMBERS`: room_code -> {sid: nickname} 맵
+
+이 파일의 주석과 함수 설명은 한국어로 작성되어 있어 코드 이해를 돕습니다.
+"""
+
 from datetime import datetime
 from typing import Dict
 
@@ -5,6 +18,7 @@ import socketio
 from fastapi import FastAPI
 
 
+# FastAPI 앱과 Socket.IO 서버 인스턴스
 app = FastAPI(title="Digital Pet Comm Test Server")
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 ROOM_LIMIT = 6
@@ -18,6 +32,10 @@ ROOM_MEMBERS: Dict[str, Dict[str, str]] = {}
 
 @app.get("/health")
 async def health() -> dict:
+    """헬스체크 엔드포인트
+
+    반환값: 서버 상태를 담은 dict (ok, 현재시간, 방 개수)
+    """
     return {
         "ok": True,
         "time": datetime.now().isoformat(timespec="seconds"),
@@ -27,11 +45,22 @@ async def health() -> dict:
 
 @sio.event
 async def connect(sid, environ):
+    """클라이언트 연결 핸들러
+
+    매개변수:
+    - sid: Socket.IO가 부여한 클라이언트 세션 ID
+    - environ: ASGI 환경 정보 (사용 안함)
+    """
     print(f"[connect] sid={sid}")
 
 
 @sio.event
 async def disconnect(sid):
+    """클라이언트 연결 해제 처리
+
+    SID_INFO와 ROOM_MEMBERS에서 해당 sid를 제거하고 동일 룸 참가자에게
+    `member_left` 이벤트를 브로드캐스트합니다.
+    """
     info = SID_INFO.pop(sid, None)
     if info:
         room_code = info["room_code"]
@@ -55,6 +84,18 @@ async def disconnect(sid):
 
 @sio.event
 async def join_room(sid, data):
+    """클라이언트의 룸 참가 요청 처리
+
+    동작 요약:
+    - 룸 수용 가능 여부 확인(ROOM_LIMIT)
+    - 기존 룸에서 이동한 경우 이전 룸에서 제거
+    - SID_INFO와 ROOM_MEMBERS를 갱신하고 다른 참가자에게
+      `member_joined`와 `member_list` 이벤트를 전송
+
+    매개변수:
+    - sid: 클라이언트 세션 ID
+    - data: 클라이언트가 보낸 payload (room_code, nickname 등)
+    """
     room_code = data.get("room_code", "TEST_ROOM")
     nickname = data.get("nickname", "unknown")
 
@@ -119,6 +160,11 @@ async def join_room(sid, data):
 
 @sio.event
 async def status_update(sid, data):
+    """클라이언트 상태 업데이트 수신
+
+    클라이언트가 전송한 상태(state 등)를 받아서 같은 룸의 참가자들에게
+    `member_status` 이벤트로 브로드캐스트합니다.
+    """
     info = SID_INFO.get(sid, {})
     room_code = info.get("room_code", data.get("room_code", "TEST_ROOM"))
     payload = {
@@ -133,6 +179,12 @@ async def status_update(sid, data):
 
 @sio.event
 async def video_frame(sid, data):
+    """비디오 프레임 수신 처리
+
+    - 클라이언트가 룸에 참가하지 않은 경우 거부 응답 전송
+    - 페이로드 크기(문자열 길이)가 너무 큰 경우 거부
+    - 유효하면 `room_video` 이벤트로 같은 룸의 다른 참가자들에게 전송
+    """
     info = SID_INFO.get(sid)
     if not info:
         await sio.emit(
@@ -167,6 +219,11 @@ async def video_frame(sid, data):
 
 @sio.event
 async def audio_toggle(sid, data):
+    """오디오 토글 요청 처리
+
+    클라이언트가 오디오를 켜거나 끌 때 같은 룸의 참가자들에게
+    `audio_changed` 이벤트를 전송합니다.
+    """
     info = SID_INFO.get(sid)
     if not info:
         return
