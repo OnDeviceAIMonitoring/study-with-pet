@@ -16,6 +16,7 @@ from typing import Dict
 
 import socketio
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 
 # FastAPI 앱과 Socket.IO 서버 인스턴스
@@ -28,6 +29,57 @@ SID_INFO: Dict[str, Dict[str, str]] = {}
 
 # room_code -> {sid: nickname}
 ROOM_MEMBERS: Dict[str, Dict[str, str]] = {}
+
+# 단체방 등록: room_code -> room_name
+ROOM_REGISTRY: Dict[str, str] = {}
+
+
+class _RoomPayload(BaseModel):
+    name: str
+    room_code: str
+
+
+@app.post("/rooms/create")
+async def create_room(payload: _RoomPayload) -> dict:
+    """단체방 생성 엔드포인트
+
+    요청 body: {name, room_code}
+    반환값: ok, name, room_code 또는 오류 코드
+    """
+    name = payload.name.strip()
+    room_code = payload.room_code.strip()
+    if not name or not room_code:
+        return {"ok": False, "error": "name_and_code_required"}
+    if room_code in ROOM_REGISTRY:
+        return {"ok": False, "error": "room_code_exists"}
+    ROOM_REGISTRY[room_code] = name
+    return {"ok": True, "name": name, "room_code": room_code}
+
+
+@app.post("/rooms/join")
+async def join_room_http(payload: _RoomPayload) -> dict:
+    """단체방 참가 검증 엔드포인트
+
+    요청 body: {name, room_code}
+    방 이름과 참가 코드가 모두 일치해야 참가 허용.
+    """
+    name = payload.name.strip()
+    room_code = payload.room_code.strip()
+    if not name or not room_code:
+        return {"ok": False, "error": "name_and_code_required"}
+    registered_name = ROOM_REGISTRY.get(room_code)
+    if registered_name is None:
+        return {"ok": False, "error": "room_not_found"}
+    if registered_name != name:
+        return {"ok": False, "error": "name_mismatch"}
+    return {"ok": True, "name": registered_name, "room_code": room_code}
+
+
+@app.get("/rooms")
+async def list_rooms() -> dict:
+    """등록된 단체방 목록 조회"""
+    rooms = [{"name": v, "room_code": k} for k, v in ROOM_REGISTRY.items()]
+    return {"ok": True, "rooms": rooms}
 
 
 @app.get("/health")

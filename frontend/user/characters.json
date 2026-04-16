@@ -1,0 +1,17 @@
+[
+  {
+    "name": "maltese",
+    "type": "baby",
+    "growth": 0.8
+  },
+  {
+    "name": "border_collie",
+    "type": "crown",
+    "growth": 0.2
+  },
+  {
+    "name": "york",
+    "type": "baby",
+    "growth": 0.0
+  }
+]
