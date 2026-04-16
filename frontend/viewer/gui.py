@@ -408,6 +408,10 @@ class ViewerApp:
         for widget in self.container.winfo_children():
             widget.pack_forget()
         if slide_no == 1:
+            # slide1이 다시 보여질 때마다 애니메이션 프레임 재생성
+            for child in self.slide1.winfo_children():
+                child.destroy()
+            self._build_slide1()
             self.slide1.pack(fill="both", expand=True)
             self.current_slide = 1
         elif slide_no == 2:
@@ -427,12 +431,13 @@ class ViewerApp:
             self.slide14.pack(fill="both", expand=True)
             self.current_slide = 14
 
+
     def _build_slide1(self):
+        import os
+        import random
+        from PIL import Image
         frame = self.slide1
         frame.grid_columnconfigure(0, weight=1)
-
-        title = ctk.CTkLabel(frame, text="Study With Pet", font=self._make_font(36))
-        title.grid(row=0, column=0, pady=(40, 20))
 
         buttons = [
             ("개인 공부", self._on_personal_study),
@@ -441,9 +446,99 @@ class ViewerApp:
             ("나가기", self.root.quit),
         ]
 
+        canvas_w = self.args.canvas_width
+        canvas_h = self.args.canvas_height
+        char_w = 120
+        char_h = int(char_w * 650 / 430)
+
+        btn_center_x = canvas_w // 2
+        btn_left = btn_center_x - 310
+        btn_right = btn_center_x + 310
+        btn_top_y = 70
+        btn_bottom_y = btn_top_y + len(buttons) * 72 + 30
+
+        possible_areas = [
+            (0, btn_top_y, btn_left - 5, btn_bottom_y - btn_top_y),
+            (btn_right + 5, btn_top_y, canvas_w - btn_right - 5, btn_bottom_y - btn_top_y),
+        ]
+
+        # ── 캐릭터 라벨 먼저 생성 (z-order상 버튼보다 아래로 위치) ──
+        self._slide1_characters = []
+        try:
+            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                char_list = json.load(f)
+        except Exception:
+            char_list = []
+
+        # 영역당 1마리씩 랜덤으로 셔플 후 배치
+        valid_areas = [a for a in possible_areas if a[2] >= char_w and a[3] >= char_h]
+        candidates = []
+        for char in char_list:
+            name = char.get("name", "maltese")
+            ctype = char.get("type", "baby")
+            happy_dir = f"frontend/assets/characters/{name}/{ctype}/happy"
+            if not os.path.isdir(happy_dir):
+                continue
+            pngs = sorted([f for f in os.listdir(happy_dir) if f.endswith('.png')])
+            if not pngs:
+                continue
+            frames = []
+            for fn in pngs:
+                try:
+                    pil_img = Image.open(os.path.join(happy_dir, fn)).convert("RGBA")
+                    bg = Image.new("RGBA", (char_w, char_h), (0, 0, 0, 0))
+                    pil_img.thumbnail((char_w, char_h), Image.LANCZOS)
+                    ox = (char_w - pil_img.width) // 2
+                    oy = (char_h - pil_img.height) // 2
+                    bg.paste(pil_img, (ox, oy), pil_img)
+                    ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(char_w, char_h))
+                    frames.append(ctk_img)
+                except Exception:
+                    continue
+            if frames:
+                candidates.append({"frames": frames})
+
+        # 영역 수만큼만 랜덤 선택해서 1대1 배치
+        random.shuffle(candidates)
+        shuffled_areas = list(valid_areas)
+        random.shuffle(shuffled_areas)
+        for i, (char_data, area) in enumerate(zip(candidates, shuffled_areas)):
+            x0, y0, w, h = area
+            px = x0 + random.randint(0, max(0, w - char_w))
+            py = y0 + random.randint(0, max(0, h - char_h))
+            frames = char_data["frames"]
+            lbl = ctk.CTkLabel(frame, image=frames[0], text="", fg_color="transparent")
+            lbl.place(x=px, y=py)
+            self._slide1_characters.append({
+                "frames": frames,
+                "frame_idx": random.randint(0, len(frames) - 1),
+                "frame_cnt": len(frames),
+                "label": lbl,
+            })
+
+        # ── 타이틀·버튼을 캐릭터 위에 생성 ──
+        title = ctk.CTkLabel(frame, text="Study With Pet", font=self._make_font(36))
+        title.grid(row=0, column=0, pady=(40, 20))
+
+        self._slide1_buttons = []
         for i, (label, cmd) in enumerate(buttons, start=1):
             btn = ctk.CTkButton(frame, text=label, width=600, height=48, command=cmd, font=self._make_font(16))
             btn.grid(row=i, column=0, pady=12, padx=20)
+            self._slide1_buttons.append(btn)
+
+        self._slide1_anim_running = True
+        self._slide1_anim_update()
+
+    def _slide1_anim_update(self):
+        # 메인화면에 등장한 캐릭터들 프레임 갱신
+        if not getattr(self, "_slide1_anim_running", False):
+            return
+        for c in getattr(self, "_slide1_characters", []):
+            c["frame_idx"] = (c["frame_idx"] + 1) % c["frame_cnt"]
+            if c["label"] is not None:
+                c["label"].configure(image=c["frames"][c["frame_idx"]])
+        # 100ms마다 갱신
+        self.root.after(200, self._slide1_anim_update)
 
     def _build_slide13(self):
         frame = self.slide13
