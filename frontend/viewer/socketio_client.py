@@ -70,27 +70,32 @@ async def _socketio_main(app):
 
     try:
         await sio.connect(app.args.server, socketio_path="socket.io")
-        # Start background task to send local camera frames when in group mode
+        # 그룹 모드에서 로컬 카메라 프레임을 주기적으로 서버에 전송하는 백그라운드 태스크
         async def _frame_sender():
-            try:
-                import cv2
-            except Exception:
-                cv2 = None
+            import cv2
+
             while not app.stop_event.is_set():
                 await asyncio.sleep(0.2)
-                # only send when local camera is running and current slide is group
-                if not getattr(app, "camera_running", False):
-                    continue
-                if getattr(app, "current_slide", None) != 3:
-                    continue
-                with app.lock:
-                    frame = None if app.latest_frame is None else app.latest_frame.copy()
-                if frame is None:
-                    continue
-                if cv2 is None:
-                    continue
                 try:
-                    # JPEG encode with modest quality to limit payload size
+                    # 카메라 실행 중 + 그룹 슬라이드(3)일 때만 전송
+                    if not getattr(app, "camera_running", False):
+                        continue
+                    if getattr(app, "current_slide", None) != 3:
+                        continue
+                    # 소켓 연결 상태 확인
+                    if not sio.connected:
+                        continue
+                    # non-blocking 잠금: 이벤트 루프 차단 방지
+                    acquired = app.lock.acquire(blocking=False)
+                    if not acquired:
+                        continue
+                    try:
+                        frame = None if app.latest_frame is None else app.latest_frame.copy()
+                    finally:
+                        app.lock.release()
+                    if frame is None:
+                        continue
+                    # JPEG 인코딩 후 base64 변환하여 서버에 전송
                     ret, enc = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
                     if not ret:
                         continue
@@ -104,6 +109,7 @@ async def _socketio_main(app):
                         },
                     )
                 except Exception as exc:
+                    # 개별 전송 실패 시 태스크 전체가 죽지 않도록 예외 처리
                     print(f"[viewer:ctk] frame send error: {exc}")
 
         frame_task = asyncio.create_task(_frame_sender())
