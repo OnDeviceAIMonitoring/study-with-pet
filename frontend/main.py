@@ -6,7 +6,7 @@
 
 import argparse
 
-from viewer.gui import ViewerApp
+from views.app import ViewerApp
 
 
 def parse_args() -> argparse.Namespace:

@@ -2,10 +2,10 @@
 ViewerApp 메인 진입점
 
 각 슬라이드 기능은 Mixin 클래스로 분리되어 있습니다.
-  - slide_main.py  : MainSlideMixin   (메인 화면)
-  - slide_char.py  : CharSlideMixin   (캐릭터 선택/목록/생성)
-  - slide_group.py : GroupSlideMixin  (단체방)
-  - slide_camera.py: CameraSlideMixin (카메라 피드)
+  - screens/main.py  : MainScreenMixin   (메인 화면)
+  - screens/character.py  : CharScreenMixin   (캐릭터 선택/목록/생성)
+  - screens/group.py : GroupScreenMixin  (단체방)
+  - screens/camera.py: CameraScreenMixin (카메라 피드)
 """
 
 from datetime import datetime
@@ -32,25 +32,17 @@ except Exception:
 import os
 import sys
 
-from .slides import (
+from config import (
     MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN,
     SELECT_CHAR, GROUP_ROOM, PERSONAL_CAMERA, CHAR_LIST, CREATE_CHAR,
 )
-from .slide_main import MainSlideMixin
-from .slide_char import CharSlideMixin
-from .slide_group import GroupSlideMixin
-from .slide_camera import CameraSlideMixin
+from .screens import MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreenMixin
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
-from .study_time import save_study_time
-
-# frontend/ 디렉터리를 경로에 추가하여 user 패키지 임포트
-_frontend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _frontend_dir not in sys.path:
-    sys.path.insert(0, _frontend_dir)
+from services.study_time import save_study_time
 
 
-class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixin):
+class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreenMixin):
 
     # ──────────────────────────────────────────────
     # 초기화
@@ -80,6 +72,8 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
         self._group_char_growth_percent = 0
         self._group_char_idx = -1
         self._group_char_anim_running = False
+        self._group_char_anim_sets = {}   # {"happy": [...], "tail": [...], "tear": [...]}
+        self._group_char_current_anim = "tail"
 
         # 단체방 공부 시간/성장 상태
         self._group_study_running = False
@@ -120,92 +114,92 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
         self.container = ctk.CTkFrame(self.root)
         self.container.pack(fill="both", expand=True)
 
-        self.slide1 = ctk.CTkFrame(self.container)
-        self.slide6 = ctk.CTkFrame(self.container)
-        self.slide13 = ctk.CTkFrame(self.container)
-        self.slide14 = ctk.CTkFrame(self.container)
-        self.slide_group = ctk.CTkFrame(self.container)
-        self.slide2 = ctk.CTkFrame(self.container)
-        self.slide_group_join = ctk.CTkFrame(self.container)
-        self.slide_group_create = ctk.CTkFrame(self.container)
-        self.slide_char_select = ctk.CTkFrame(self.container)
-        self.slide_camera = ctk.CTkFrame(self.container)
+        self.screen_main = ctk.CTkFrame(self.container)
+        self.screen_char_legacy = ctk.CTkFrame(self.container)
+        self.screen_char_list = ctk.CTkFrame(self.container)
+        self.screen_char_create = ctk.CTkFrame(self.container)
+        self.screen_group = ctk.CTkFrame(self.container)
+        self.screen_group_list = ctk.CTkFrame(self.container)
+        self.screen_group_join = ctk.CTkFrame(self.container)
+        self.screen_group_create = ctk.CTkFrame(self.container)
+        self.screen_char_select = ctk.CTkFrame(self.container)
+        self.screen_camera = ctk.CTkFrame(self.container)
 
-        self._slide6_page = 0
-        self._slide13_page = 0
-        self._slide14_page = 0
-        self._char_select_page = 0
+        self._screen_char_legacy_page = 0
+        self._screen_char_list_page = 0
+        self._screen_char_create_page = 0
+        self._screen_char_select_page = 0
 
         self._refresh_period_ms = max(10, self.args.refresh_ms)
 
         # 슬라이드 빌드
-        self._build_slide1()
-        self._build_slide6()
-        self._build_slide13()
-        self._build_slide14()
-        self._build_group_slide()
-        self._build_group_list_slide()
-        self._build_group_join_slide()
-        self._build_group_create_slide()
-        self._build_char_select_slide()
-        self._build_camera_slide()
+        self._build_screen_main()
+        self._build_screen_char_legacy()
+        self._build_screen_char_list()
+        self._build_screen_char_create()
+        self._build_screen_group()
+        self._build_screen_group_list()
+        self._build_screen_group_join()
+        self._build_screen_group_create()
+        self._build_screen_char_select()
+        self._build_screen_camera()
 
-        self.show_slide(MAIN)
+        self.show_screen(MAIN)
 
     # ──────────────────────────────────────────────
     # 슬라이드 라우팅
     # ──────────────────────────────────────────────
 
-    def show_slide(self, slide_no: int):
+    def show_screen(self, screen_id: int):
         for widget in self.container.winfo_children():
             widget.pack_forget()
 
-        if slide_no == MAIN:
-            for child in self.slide1.winfo_children():
+        if screen_id == MAIN:
+            for child in self.screen_main.winfo_children():
                 child.destroy()
-            self._build_slide1()
-            self.slide1.pack(fill="both", expand=True)
+            self._build_screen_main()
+            self.screen_main.pack(fill="both", expand=True)
 
-        elif slide_no == GROUP_LIST:
+        elif screen_id == GROUP_LIST:
             self._refresh_group_list()
-            self.slide2.pack(fill="both", expand=True)
+            self.screen_group_list.pack(fill="both", expand=True)
 
-        elif slide_no == GROUP_CREATE:
+        elif screen_id == GROUP_CREATE:
             self.create_name_entry.delete(0, "end")
             self.create_code_entry.delete(0, "end")
             self.create_error_label.configure(text="")
             self.create_submit_btn.configure(state="normal", text="생성하기")
-            self.slide_group_create.pack(fill="both", expand=True)
+            self.screen_group_create.pack(fill="both", expand=True)
 
-        elif slide_no == GROUP_JOIN:
+        elif screen_id == GROUP_JOIN:
             self.join_name_entry.delete(0, "end")
             self.join_code_entry.delete(0, "end")
             self.join_error_label.configure(text="")
             self.join_submit_btn.configure(state="normal", text="참가하기")
-            self.slide_group_join.pack(fill="both", expand=True)
+            self.screen_group_join.pack(fill="both", expand=True)
 
-        elif slide_no == SELECT_CHAR:
+        elif screen_id == SELECT_CHAR:
             self._refresh_char_select()
-            self.slide_char_select.pack(fill="both", expand=True)
+            self.screen_char_select.pack(fill="both", expand=True)
 
-        elif slide_no == GROUP_ROOM:
+        elif screen_id == GROUP_ROOM:
             self._reload_group_character_overlay()
-            self.slide_group.pack(fill="both", expand=True)
+            self.screen_group.pack(fill="both", expand=True)
 
-        elif slide_no == PERSONAL_CAMERA:
-            for child in self.slide_camera.winfo_children():
+        elif screen_id == PERSONAL_CAMERA:
+            for child in self.screen_camera.winfo_children():
                 child.destroy()
-            self._build_camera_slide()
-            self.slide_camera.pack(fill="both", expand=True)
+            self._build_screen_camera()
+            self.screen_camera.pack(fill="both", expand=True)
 
-        elif slide_no == CHAR_LIST:
-            self.slide13.pack(fill="both", expand=True)
+        elif screen_id == CHAR_LIST:
+            self.screen_char_list.pack(fill="both", expand=True)
 
-        elif slide_no == CREATE_CHAR:
-            self._build_slide14()
-            self.slide14.pack(fill="both", expand=True)
+        elif screen_id == CREATE_CHAR:
+            self._build_screen_char_create()
+            self.screen_char_create.pack(fill="both", expand=True)
 
-        self.current_slide = slide_no
+        self.current_screen = screen_id
 
     # ──────────────────────────────────────────────
     # 실행
@@ -231,9 +225,9 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
         if not hasattr(self, "img_label"):
             return
 
-        slide = getattr(self, "current_slide", MAIN)
+        screen = getattr(self, "current_screen", MAIN)
 
-        if slide == PERSONAL_CAMERA:
+        if screen == PERSONAL_CAMERA:
             with self.lock:
                 frame = None if self.latest_frame is None else self.latest_frame.copy()
             if frame is None:
@@ -249,7 +243,7 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             self.img_label.image = img_tk
             self.img_label.configure(image=img_tk)
 
-        elif slide == GROUP_ROOM:
+        elif screen == GROUP_ROOM:
             self._tick_group_study_growth()
 
             with self.lock:
@@ -337,6 +331,8 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
         self._group_char_name = ""
         self._group_char_growth_percent = 0
         self._group_char_anim_running = False
+        self._group_char_anim_sets = {}
+        self._group_char_current_anim = "tail"
 
         if hasattr(self, "_group_char_label"):
             self._group_char_label.configure(image=None)
@@ -348,7 +344,7 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             return
 
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 characters = json.load(f)
         except Exception:
             return
@@ -377,31 +373,34 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             self._group_char_growth.set(display_growth / 120)
         ctype = selected.get("type", "baby")
 
-        tail_dir = f"frontend/assets/characters/{self._group_char_name}/{ctype}/tail"
-        if not os.path.isdir(tail_dir):
-            return
-
-        files = sorted([f for f in os.listdir(tail_dir) if f.endswith(".png")])
-        if not files:
-            return
-
         # 개인방 캐릭터 크기와 동일하게 고정
         target_w = 120
         target_h = int(120 * 650 / 430)
 
-        for fn in files:
-            img_path = os.path.join(tail_dir, fn)
-            try:
-                pil_img = Image.open(img_path).convert("RGBA")
-                bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
-                pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
-                ox = (target_w - pil_img.width) // 2
-                oy = (target_h - pil_img.height) // 2
-                bg.paste(pil_img, (ox, oy), pil_img)
-                ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
-                self._group_char_frames.append(ctk_img)
-            except Exception:
-                continue
+        # happy / tail / tear 세트 모두 로드 (tear 없으면 sad 대체)
+        for anim_name in ("happy", "tail", "tear"):
+            anim_dir = f"frontend/assets/characters/{self._group_char_name}/{ctype}/{anim_name}"
+            if anim_name == "tear" and not os.path.isdir(anim_dir):
+                anim_dir = f"frontend/assets/characters/{self._group_char_name}/{ctype}/sad"
+            frames = []
+            if os.path.isdir(anim_dir):
+                files = sorted([f for f in os.listdir(anim_dir) if f.endswith(".png")])
+                for fn in files:
+                    try:
+                        pil_img = Image.open(os.path.join(anim_dir, fn)).convert("RGBA")
+                        bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+                        pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                        ox = (target_w - pil_img.width) // 2
+                        oy = (target_h - pil_img.height) // 2
+                        bg.paste(pil_img, (ox, oy), pil_img)
+                        ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
+                        frames.append(ctk_img)
+                    except Exception:
+                        continue
+            self._group_char_anim_sets[anim_name] = frames
+
+        self._group_char_frames = self._group_char_anim_sets.get("tail", [])
+        self._group_char_current_anim = "tail"
 
         if self._group_char_frames and hasattr(self, "_group_char_label"):
             self._group_char_label.configure(image=self._group_char_frames[0])
@@ -409,8 +408,30 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             self._group_char_anim_tick()
 
     def _group_char_anim_tick(self):
-        if not self._group_char_anim_running or not self._group_char_frames:
+        if not self._group_char_anim_running:
             return
+
+        # 개인방과 동일하게 시그널에 따라 애니메이션 세트 전환
+        from .screens.camera import _SIGNAL_PRIORITY, _SIGNAL_TO_ANIM, _DEFAULT_ANIM
+        sig = getattr(self, "_camera_current_signal", None)
+        target_anim = _DEFAULT_ANIM
+        if sig:
+            for s in _SIGNAL_PRIORITY:
+                if s == sig:
+                    target_anim = _SIGNAL_TO_ANIM.get(s, _DEFAULT_ANIM)
+                    break
+
+        if target_anim != self._group_char_current_anim:
+            new_frames = self._group_char_anim_sets.get(target_anim, [])
+            if new_frames:
+                self._group_char_current_anim = target_anim
+                self._group_char_frames = new_frames
+                self._group_char_frame_idx = 0
+
+        if not self._group_char_frames:
+            self.root.after(500, self._group_char_anim_tick)
+            return
+
         self._group_char_frame_idx = (self._group_char_frame_idx + 1) % len(self._group_char_frames)
         try:
             if hasattr(self, "_group_char_label"):

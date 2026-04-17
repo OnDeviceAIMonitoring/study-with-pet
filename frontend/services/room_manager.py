@@ -9,7 +9,7 @@ import json
 import os
 from typing import List, Dict
 
-_ROOMS_FILE = os.path.join(os.path.dirname(__file__), "rooms.json")
+_ROOMS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "rooms.json")
 
 
 def load_rooms() -> List[Dict]:

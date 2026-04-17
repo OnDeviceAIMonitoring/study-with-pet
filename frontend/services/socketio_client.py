@@ -15,7 +15,7 @@ from datetime import datetime
 import socketio
 
 # 슬라이드 상수 임포트: 그룹 방 슬라이드 번호를 기준으로 전송 여부 판단
-from .slides import GROUP_ROOM
+from config import GROUP_ROOM
 
 
 def start_background(app, generation: int = 0):
@@ -81,7 +81,7 @@ async def _socketio_main(app, generation: int):
             return
         try:
             # 지연 임포트: frame_utils는 OpenCV 의존성을 포함
-            from .frame_utils import decode_frame
+            from views.frame_utils import decode_frame
 
             frame = decode_frame(jpeg_base64)
         except Exception as exc:
@@ -124,7 +124,7 @@ async def _socketio_main(app, generation: int):
                     # 카메라 실행 중 + 그룹 방 슬라이드일 때만 전송
                     if not getattr(app, "camera_running", False):
                         continue
-                    if getattr(app, "current_slide", None) != GROUP_ROOM:
+                    if getattr(app, "current_screen", None) != GROUP_ROOM:
                         continue
                     # 소켓 연결 상태 확인
                     if not sio.connected:

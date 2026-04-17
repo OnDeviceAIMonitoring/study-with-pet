@@ -1,32 +1,32 @@
 """
 단체방 관련 슬라이드 Mixin
-- slide2           : 단체방 목록 (GROUP_LIST)
-- slide_group      : 단체방 공부 화면 (GROUP_ROOM)
-- slide_group_join : 단체방 참가 (GROUP_JOIN)
-- slide_group_create : 단체방 생성 (GROUP_CREATE)
+- screen_group_list           : 단체방 목록 (GROUP_LIST)
+- screen_group      : 단체방 공부 화면 (GROUP_ROOM)
+- screen_group_join : 단체방 참가 (GROUP_JOIN)
+- screen_group_create : 단체방 생성 (GROUP_CREATE)
 """
 import json
 import threading
 
 import customtkinter as ctk
 
-from .slides import MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN, GROUP_ROOM, SELECT_CHAR
-from . import socketio_client
-from user import room_manager
+from config import MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN, GROUP_ROOM, SELECT_CHAR
+from services import socketio_client
+from services import room_manager
 
 
-class GroupSlideMixin:
+class GroupScreenMixin:
 
     # ──────────────────────────────────────────────
-    # slide_group : 단체방 공부 화면 (GROUP_ROOM)
+    # screen_group : 단체방 공부 화면 (GROUP_ROOM)
     # ──────────────────────────────────────────────
 
-    def _build_group_slide(self):
-        frame = self.slide_group
+    def _build_screen_group(self):
+        frame = self.screen_group
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
-        self.group_slide_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18))
-        self.group_slide_title.pack(side="left")
+        self.group_screen_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18))
+        self.group_screen_title.pack(side="left")
         ctk.CTkButton(top, text="← 방 목록", width=90, command=self._on_group_back,
                       font=self._make_font(12)).pack(side="right")
 
@@ -48,22 +48,22 @@ class GroupSlideMixin:
         self.stop_camera()
         with self.lock:
             self.frame_map.clear()
-        self.show_slide(GROUP_LIST)
+        self.show_screen(GROUP_LIST)
 
     def _on_group_study(self):
-        self.show_slide(GROUP_LIST)
+        self.show_screen(GROUP_LIST)
 
     # ──────────────────────────────────────────────
-    # slide2 : 단체방 목록 (GROUP_LIST)
+    # screen_group_list : 단체방 목록 (GROUP_LIST)
     # ──────────────────────────────────────────────
 
-    def _build_group_list_slide(self):
-        frame = self.slide2
+    def _build_screen_group_list(self):
+        frame = self.screen_group_list
 
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_slide(MAIN),
+        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_screen(MAIN),
                       font=self._make_font(14)).pack(side="right")
 
         self.group_list_scroll = ctk.CTkScrollableFrame(
@@ -77,7 +77,7 @@ class GroupSlideMixin:
 
         ctk.CTkButton(
             bottom, text="참가하기", height=46,
-            command=lambda: self.show_slide(GROUP_JOIN),
+            command=lambda: self.show_screen(GROUP_JOIN),
             font=self._make_font(15),
             fg_color=("gray70", "gray30"),
             hover_color=("gray60", "gray40"),
@@ -86,7 +86,7 @@ class GroupSlideMixin:
 
         ctk.CTkButton(
             bottom, text="생성하기", height=46,
-            command=lambda: self.show_slide(GROUP_CREATE),
+            command=lambda: self.show_screen(GROUP_CREATE),
             font=self._make_font(15),
         ).grid(row=0, column=1, padx=(6, 0), sticky="ew")
 
@@ -133,16 +133,16 @@ class GroupSlideMixin:
         arrow_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
 
     # ──────────────────────────────────────────────
-    # slide_group_join : 단체방 참가 (GROUP_JOIN)
+    # screen_group_join : 단체방 참가 (GROUP_JOIN)
     # ──────────────────────────────────────────────
 
-    def _build_group_join_slide(self):
-        frame = self.slide_group_join
+    def _build_screen_group_join(self):
+        frame = self.screen_group_join
 
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_slide(GROUP_LIST),
+        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_screen(GROUP_LIST),
                       font=self._make_font(14)).pack(side="right")
 
         wrap = ctk.CTkFrame(frame, fg_color="transparent")
@@ -205,16 +205,16 @@ class GroupSlideMixin:
         self._call_api("/rooms/join", {"name": name, "room_code": code}, on_result)
 
     # ──────────────────────────────────────────────
-    # slide_group_create : 단체방 생성 (GROUP_CREATE)
+    # screen_group_create : 단체방 생성 (GROUP_CREATE)
     # ──────────────────────────────────────────────
 
-    def _build_group_create_slide(self):
-        frame = self.slide_group_create
+    def _build_screen_group_create(self):
+        frame = self.screen_group_create
 
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_slide(GROUP_LIST),
+        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_screen(GROUP_LIST),
                       font=self._make_font(14)).pack(side="right")
 
         wrap = ctk.CTkFrame(frame, fg_color="transparent")
@@ -282,7 +282,7 @@ class GroupSlideMixin:
     def _start_group_room_flow(self, room_code: str, room_name: str):
         """캐릭터 선택 화면을 거쳐 단체방에 입장합니다."""
         self._pending_group_room = (room_code, room_name)
-        self.show_slide(SELECT_CHAR)
+        self.show_screen(SELECT_CHAR)
 
     def _enter_group_room(self, room_code: str, room_name: str):
         """단체방 공부 세션을 시작합니다."""
@@ -291,9 +291,9 @@ class GroupSlideMixin:
         with self.lock:
             self.frame_map.clear()
 
-        self.group_slide_title.configure(text=f"단체 공부  ·  {room_name}")
+        self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
         self._start_group_study_session()
         socketio_client.start_background(self, self._socket_generation)
 
-        self.show_slide(GROUP_ROOM)
+        self.show_screen(GROUP_ROOM)
         self.start_camera()

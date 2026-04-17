@@ -1,9 +1,9 @@
 """
 캐릭터 관련 슬라이드 Mixin
-- slide6  : (레거시) 캐릭터 선택 카드
-- slide13 : 보유 캐릭터 성장 현황 (CHAR_LIST)
-- slide14 : 캐릭터 생성 (CREATE_CHAR)
-- slide_char_select : 공부 시작 전 캐릭터 선택 (SELECT_CHAR)
+- screen_char_legacy  : (레거시) 캐릭터 선택 카드
+- screen_char_list : 보유 캐릭터 성장 현황 (CHAR_LIST)
+- screen_char_create : 캐릭터 생성 (CREATE_CHAR)
+- screen_char_select : 공부 시작 전 캐릭터 선택 (SELECT_CHAR)
 """
 import os
 import json
@@ -11,13 +11,13 @@ import json
 from PIL import Image
 import customtkinter as ctk
 
-from .slides import MAIN, GROUP_LIST, SELECT_CHAR, CREATE_CHAR, PERSONAL_CAMERA
+from config import MAIN, GROUP_LIST, SELECT_CHAR, CREATE_CHAR, PERSONAL_CAMERA
 
 
-class CharSlideMixin:
+class CharScreenMixin:
 
     def get_selected_character(self):
-        return getattr(self, '_slide6_selected', None)
+        return getattr(self, '_screen_char_legacy_selected', None)
 
     # ──────────────────────────────────────────────
     # 성장도 및 성장 단계 계산/반영 함수
@@ -31,7 +31,7 @@ class CharSlideMixin:
         단계: baby → adult → crown
         """
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 chars = json.load(f)
         except Exception:
             return False
@@ -49,27 +49,27 @@ class CharSlideMixin:
         if new_stage_idx != stage_idx:
             char["type"] = stages[new_stage_idx]
         chars[char_idx] = char
-        with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+        with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
             json.dump(chars, f, ensure_ascii=False, indent=2)
         return True
 
     # ──────────────────────────────────────────────
-    # slide6 (레거시 – 내부 참조용, 직접 표시 안 함)
+    # screen_char_legacy (레거시 – 내부 참조용, 직접 표시 안 함)
     # ──────────────────────────────────────────────
 
-    def _build_slide6(self):
-        frame = self.slide6
+    def _build_screen_char_legacy(self):
+        frame = self.screen_char_legacy
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         title = ctk.CTkLabel(top, text="캐릭터 선택 (성장시킬 캐릭터)", anchor="w", font=self._make_font(20))
         title.pack(side="left")
         back_top_btn = ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12),
-                                     command=lambda: self.show_slide(MAIN))
+                                     command=lambda: self.show_screen(MAIN))
         back_top_btn.pack(side="right", padx=(0, 6))
 
         def on_create_character():
-            self._slide14_page = 0
-            self.show_slide(CREATE_CHAR)
+            self._screen_char_create_page = 0
+            self.show_screen(CREATE_CHAR)
         create_btn = ctk.CTkButton(top, text="캐릭터 생성", width=110, height=32,
                                    font=self._make_font(14), command=on_create_character)
         create_btn.pack(side="right", padx=(0, 6))
@@ -78,24 +78,24 @@ class CharSlideMixin:
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 characters = json.load(f)
         except Exception:
             characters = []
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
-        self._slide6_page = min(self._slide6_page, total_pages - 1)
+        self._screen_char_legacy_page = min(self._screen_char_legacy_page, total_pages - 1)
 
         def on_prev_page():
-            if self._slide6_page > 0:
-                self._slide6_page -= 1
-                self._rebuild_slide6()
+            if self._screen_char_legacy_page > 0:
+                self._screen_char_legacy_page -= 1
+                self._rebuild_screen_char_legacy()
 
         def on_next_page():
-            if self._slide6_page < total_pages - 1:
-                self._slide6_page += 1
-                self._rebuild_slide6()
+            if self._screen_char_legacy_page < total_pages - 1:
+                self._screen_char_legacy_page += 1
+                self._rebuild_screen_char_legacy()
 
         back_btn = ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14), command=on_prev_page)
         back_btn.pack(side="left", padx=(0, 8))
@@ -107,15 +107,15 @@ class CharSlideMixin:
         next_btn = ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14), command=on_next_page)
         next_btn.pack(side="left", padx=(8, 0))
 
-        visible_characters = characters[self._slide6_page * page_size:(self._slide6_page + 1) * page_size]
+        visible_characters = characters[self._screen_char_legacy_page * page_size:(self._screen_char_legacy_page + 1) * page_size]
 
         card_width = 160
-        self._slide6_selected = None
-        self._slide6_cards = []
+        self._screen_char_legacy_selected = None
+        self._screen_char_legacy_cards = []
 
         def on_card_click(idx):
-            self._slide6_selected = idx
-            for i, c in enumerate(self._slide6_cards):
+            self._screen_char_legacy_selected = idx
+            for i, c in enumerate(self._screen_char_legacy_cards):
                 if i == idx:
                     c.configure(border_width=4, border_color="#33aaff")
                 else:
@@ -123,7 +123,7 @@ class CharSlideMixin:
             self.start_camera()
 
         if visible_characters:
-            self._slide6_images = []
+            self._screen_char_legacy_images = []
             for col, char in enumerate(visible_characters):
                 card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
                 card.grid(row=0, column=col, padx=8, pady=8, sticky="nsew")
@@ -163,7 +163,7 @@ class CharSlideMixin:
                         ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
                         img_label = ctk.CTkLabel(placeholder, image=ctk_img, text="")
                         img_label.pack(expand=True)
-                        self._slide6_images.append(ctk_img)
+                        self._screen_char_legacy_images.append(ctk_img)
                         img_label.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
                     except Exception:
                         lbl = ctk.CTkLabel(placeholder, text=char.get("display", f"캐릭터 {col+1}"),
@@ -183,7 +183,7 @@ class CharSlideMixin:
                 prog = ctk.CTkProgressBar(card, width=140)
                 prog.set(growth_point / 120)
                 prog.pack(pady=8)
-                self._slide6_cards.append(card)
+                self._screen_char_legacy_cards.append(card)
         else:
             ctk.CTkLabel(content, text="생성된 캐릭터가 없습니다.", font=self._make_font(16)).pack(pady=40)
 
@@ -191,45 +191,45 @@ class CharSlideMixin:
         self.camera_thread = None
         self.latest_frame = None
 
-    def _rebuild_slide6(self):
-        for widget in self.slide6.winfo_children():
+    def _rebuild_screen_char_legacy(self):
+        for widget in self.screen_char_legacy.winfo_children():
             widget.destroy()
-        self._build_slide6()
+        self._build_screen_char_legacy()
 
     # ──────────────────────────────────────────────
-    # slide13 : 보유 캐릭터 성장 현황 (CHAR_LIST)
+    # screen_char_list : 보유 캐릭터 성장 현황 (CHAR_LIST)
     # ──────────────────────────────────────────────
 
-    def _build_slide13(self):
-        frame = self.slide13
+    def _build_screen_char_list(self):
+        frame = self.screen_char_list
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20)).pack(side="left")
         ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12),
-                      command=lambda: self.show_slide(MAIN)).pack(side="right")
+                      command=lambda: self.show_screen(MAIN)).pack(side="right")
 
         middle = ctk.CTkFrame(frame)
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 characters = json.load(f)
         except Exception:
             characters = []
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
-        self._slide13_page = min(self._slide13_page, total_pages - 1)
+        self._screen_char_list_page = min(self._screen_char_list_page, total_pages - 1)
 
         def on_prev_page():
-            if self._slide13_page > 0:
-                self._slide13_page -= 1
-                self._rebuild_slide13()
+            if self._screen_char_list_page > 0:
+                self._screen_char_list_page -= 1
+                self._rebuild_screen_char_list()
 
         def on_next_page():
-            if self._slide13_page < total_pages - 1:
-                self._slide13_page += 1
-                self._rebuild_slide13()
+            if self._screen_char_list_page < total_pages - 1:
+                self._screen_char_list_page += 1
+                self._rebuild_screen_char_list()
 
         ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14),
                       command=on_prev_page).pack(side="left", padx=(0, 8))
@@ -241,11 +241,11 @@ class CharSlideMixin:
         ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14),
                       command=on_next_page).pack(side="left", padx=(8, 0))
 
-        visible_characters = characters[self._slide13_page * page_size:(self._slide13_page + 1) * page_size]
+        visible_characters = characters[self._screen_char_list_page * page_size:(self._screen_char_list_page + 1) * page_size]
         card_width = 160
-        self._slide13_images = []
-        self._slide13_anim_data = []  # list of {"label": lbl, "frames": [...], "idx": 0}
-        self._slide13_anim_running = True
+        self._screen_char_list_images = []
+        self._screen_char_list_anim_data = []  # list of {"label": lbl, "frames": [...], "idx": 0}
+        self._screen_char_list_anim_running = True
 
         for col, char in enumerate(visible_characters):
             card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
@@ -279,12 +279,12 @@ class CharSlideMixin:
                         frames.append(ctk_img)
                     except Exception:
                         continue
-                self._slide13_images.extend(frames)
+                self._screen_char_list_images.extend(frames)
 
             if frames:
                 lbl = ctk.CTkLabel(placeholder, image=frames[0], text="")
                 lbl.pack(expand=True)
-                self._slide13_anim_data.append({"label": lbl, "frames": frames, "idx": 0})
+                self._screen_char_list_anim_data.append({"label": lbl, "frames": frames, "idx": 0})
             else:
                 ctk.CTkLabel(placeholder, text=char.get("display", "캐릭터"),
                              font=self._make_font(16)).pack(expand=True)
@@ -297,38 +297,38 @@ class CharSlideMixin:
             prog.set(growth_point / 120)
             prog.pack(pady=8)
 
-        if self._slide13_anim_data:
-            self._slide13_anim_tick()
+        if self._screen_char_list_anim_data:
+            self._screen_char_list_anim_tick()
 
     def _on_show_characters(self):
-        self._slide13_page = 0
-        self._rebuild_slide13()
-        from .slides import CHAR_LIST
-        self.show_slide(CHAR_LIST)
+        self._screen_char_list_page = 0
+        self._rebuild_screen_char_list()
+        from config import CHAR_LIST
+        self.show_screen(CHAR_LIST)
 
-    def _slide13_anim_tick(self):
-        if not getattr(self, '_slide13_anim_running', False):
+    def _screen_char_list_anim_tick(self):
+        if not getattr(self, '_screen_char_list_anim_running', False):
             return
-        for entry in self._slide13_anim_data:
+        for entry in self._screen_char_list_anim_data:
             entry["idx"] = (entry["idx"] + 1) % len(entry["frames"])
             try:
                 entry["label"].configure(image=entry["frames"][entry["idx"]])
             except Exception:
                 pass
-        self.root.after(350, self._slide13_anim_tick)
+        self.root.after(350, self._screen_char_list_anim_tick)
 
-    def _rebuild_slide13(self):
-        self._slide13_anim_running = False
-        for widget in self.slide13.winfo_children():
+    def _rebuild_screen_char_list(self):
+        self._screen_char_list_anim_running = False
+        for widget in self.screen_char_list.winfo_children():
             widget.destroy()
-        self._build_slide13()
+        self._build_screen_char_list()
 
     # ──────────────────────────────────────────────
-    # slide14 : 캐릭터 생성 (CREATE_CHAR)
+    # screen_char_create : 캐릭터 생성 (CREATE_CHAR)
     # ──────────────────────────────────────────────
 
-    def _build_slide14(self):
-        frame = self.slide14
+    def _build_screen_char_create(self):
+        frame = self.screen_char_create
         for widget in frame.winfo_children():
             widget.destroy()
 
@@ -336,7 +336,7 @@ class CharSlideMixin:
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="캐릭터 생성", anchor="w", font=self._make_font(20)).pack(side="left")
         ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12),
-                      command=lambda: self.show_slide(SELECT_CHAR)).pack(side="right")
+                      command=lambda: self.show_screen(SELECT_CHAR)).pack(side="right")
 
         middle = ctk.CTkFrame(frame)
         middle.pack(fill="both", expand=True, padx=10, pady=10)
@@ -357,17 +357,17 @@ class CharSlideMixin:
 
         page_size = 3
         total_pages = max(1, (len(candidates) + page_size - 1) // page_size)
-        self._slide14_page = min(self._slide14_page, total_pages - 1)
+        self._screen_char_create_page = min(self._screen_char_create_page, total_pages - 1)
 
         def on_prev_page():
-            if self._slide14_page > 0:
-                self._slide14_page -= 1
-                self._rebuild_slide14()
+            if self._screen_char_create_page > 0:
+                self._screen_char_create_page -= 1
+                self._rebuild_screen_char_create()
 
         def on_next_page():
-            if self._slide14_page < total_pages - 1:
-                self._slide14_page += 1
-                self._rebuild_slide14()
+            if self._screen_char_create_page < total_pages - 1:
+                self._screen_char_create_page += 1
+                self._rebuild_screen_char_create()
 
         ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14),
                       command=on_prev_page).pack(side="left", padx=(0, 8))
@@ -379,13 +379,13 @@ class CharSlideMixin:
         ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14),
                       command=on_next_page).pack(side="left", padx=(8, 0))
 
-        visible_candidates = candidates[self._slide14_page * page_size:(self._slide14_page + 1) * page_size]
-        self._slide14_images = []
+        visible_candidates = candidates[self._screen_char_create_page * page_size:(self._screen_char_create_page + 1) * page_size]
+        self._screen_char_create_images = []
         card_width = 160
 
         def on_card_click(idx):
             try:
-                with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                     chars = json.load(f)
             except Exception:
                 chars = []
@@ -402,9 +402,9 @@ class CharSlideMixin:
                 self._show_info_dialog("중복 생성", f"{sel_cand['name']} 캐릭터는\n이미 생성되어 있습니다.")
                 return
             chars.append({"name": sel_cand["name"], "type": sel_type, "growth": sel_growth})
-            with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                 json.dump(chars, f, ensure_ascii=False, indent=2)
-            self._rebuild_slide6()
+            self._rebuild_screen_char_legacy()
 
         for col, cand in enumerate(visible_candidates):
             card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
@@ -435,7 +435,7 @@ class CharSlideMixin:
                 ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
                 img_label = ctk.CTkLabel(placeholder, image=ctk_img, text="")
                 img_label.pack(expand=True)
-                self._slide14_images.append(ctk_img)
+                self._screen_char_create_images.append(ctk_img)
                 img_label.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
             except Exception:
                 lbl = ctk.CTkLabel(placeholder, text=cand["name"], font=self._make_font(16))
@@ -444,17 +444,17 @@ class CharSlideMixin:
 
             ctk.CTkLabel(card, text=cand["name"], font=self._make_font(14)).pack(pady=(6, 2))
 
-    def _rebuild_slide14(self):
-        for widget in self.slide14.winfo_children():
+    def _rebuild_screen_char_create(self):
+        for widget in self.screen_char_create.winfo_children():
             widget.destroy()
-        self._build_slide14()
+        self._build_screen_char_create()
 
     # ──────────────────────────────────────────────
-    # slide_char_select : 공부 시작 전 캐릭터 선택 (SELECT_CHAR)
+    # screen_char_select : 공부 시작 전 캐릭터 선택 (SELECT_CHAR)
     # ──────────────────────────────────────────────
 
-    def _build_char_select_slide(self):
-        frame = self.slide_char_select
+    def _build_screen_char_select(self):
+        frame = self.screen_char_select
         for widget in frame.winfo_children():
             widget.destroy()
 
@@ -465,8 +465,8 @@ class CharSlideMixin:
                       font=self._make_font(14)).pack(side="right", padx=(0, 6))
 
         def on_create_character():
-            self._slide14_page = 0
-            self.show_slide(CREATE_CHAR)
+            self._screen_char_create_page = 0
+            self.show_screen(CREATE_CHAR)
         ctk.CTkButton(top, text="캐릭터 생성", width=110, height=32, font=self._make_font(14),
                       command=on_create_character).pack(side="right", padx=(0, 6))
 
@@ -474,23 +474,23 @@ class CharSlideMixin:
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 characters = json.load(f)
         except Exception:
             characters = []
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
-        self._char_select_page = min(self._char_select_page, total_pages - 1)
+        self._screen_char_select_page = min(self._screen_char_select_page, total_pages - 1)
 
         def on_prev_page():
-            if self._char_select_page > 0:
-                self._char_select_page -= 1
+            if self._screen_char_select_page > 0:
+                self._screen_char_select_page -= 1
                 self._refresh_char_select()
 
         def on_next_page():
-            if self._char_select_page < total_pages - 1:
-                self._char_select_page += 1
+            if self._screen_char_select_page < total_pages - 1:
+                self._screen_char_select_page += 1
                 self._refresh_char_select()
 
         ctk.CTkButton(middle, text="<", width=50, font=self._make_font(14),
@@ -503,9 +503,9 @@ class CharSlideMixin:
         ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14),
                       command=on_next_page).pack(side="left", padx=(8, 0))
 
-        visible_characters = characters[self._char_select_page * page_size:(self._char_select_page + 1) * page_size]
+        visible_characters = characters[self._screen_char_select_page * page_size:(self._screen_char_select_page + 1) * page_size]
         card_width = 160
-        self._char_select_images = []
+        self._screen_char_select_images = []
 
         if visible_characters:
             for col, char in enumerate(visible_characters):
@@ -515,7 +515,7 @@ class CharSlideMixin:
                 card.grid_propagate(False)
                 content.grid_rowconfigure(0, weight=1)
 
-                absolute_idx = (self._char_select_page * page_size) + col
+                absolute_idx = (self._screen_char_select_page * page_size) + col
 
                 def on_card_click(selected_idx=absolute_idx):
                     # 이름이 아닌 고유 인덱스로 선택값 저장하여 동일 이름 캐릭터 충돌 방지
@@ -526,7 +526,7 @@ class CharSlideMixin:
                         self._pending_group_room = None
                         self._enter_group_room(*pending)
                     else:
-                        self.show_slide(PERSONAL_CAMERA)
+                        self.show_screen(PERSONAL_CAMERA)
 
                 card.bind("<Button-1>", lambda e, fn=on_card_click: fn())
 
@@ -561,7 +561,7 @@ class CharSlideMixin:
                         ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
                         img_label = ctk.CTkLabel(placeholder, image=ctk_img, text="")
                         img_label.pack(expand=True)
-                        self._char_select_images.append(ctk_img)
+                        self._screen_char_select_images.append(ctk_img)
                         img_label.bind("<Button-1>", lambda e, fn=on_card_click: fn())
                     except Exception:
                         lbl = ctk.CTkLabel(placeholder, text=char.get("display", name), font=self._make_font(16))
@@ -585,14 +585,14 @@ class CharSlideMixin:
     def _on_char_select_back(self):
         if self._pending_group_room is not None:
             self._pending_group_room = None
-            self.show_slide(GROUP_LIST)
+            self.show_screen(GROUP_LIST)
         else:
-            self.show_slide(MAIN)
+            self.show_screen(MAIN)
 
     def _refresh_char_select(self):
-        for widget in self.slide_char_select.winfo_children():
+        for widget in self.screen_char_select.winfo_children():
             widget.destroy()
-        self._build_char_select_slide()
+        self._build_screen_char_select()
 
     def _on_personal_study(self):
-        self.show_slide(SELECT_CHAR)
+        self.show_screen(SELECT_CHAR)

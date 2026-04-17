@@ -1,6 +1,6 @@
 """
 카메라 슬라이드 및 카메라 제어 Mixin
-- slide_camera : 개인 공부 카메라 화면 (PERSONAL_CAMERA)
+- screen_camera : 개인 공부 카메라 화면 (PERSONAL_CAMERA)
 - signal_hub detectors 통합: 카메라 프레임에서 시그널 감지 → 캐릭터 반응
 """
 import os
@@ -12,13 +12,13 @@ import threading
 import cv2
 import customtkinter as ctk
 
-from .slides import MAIN
-from .study_time import save_study_time
+from config import MAIN
+from services.study_time import save_study_time
 
 # ─────────────────────────────────────────────────────────────
-#  detectors import (examples 디렉토리에서)
+#  detectors import (프로젝트 루트에서)
 # ─────────────────────────────────────────────────────────────
-_DETECTORS_ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+_DETECTORS_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "..")
 _DETECTORS_ROOT = os.path.abspath(_DETECTORS_ROOT)
 if _DETECTORS_ROOT not in sys.path:
     sys.path.insert(0, _DETECTORS_ROOT)
@@ -28,7 +28,7 @@ try:
     _DETECTORS_AVAILABLE = True
 except ImportError:
     _DETECTORS_AVAILABLE = False
-    print("[slide_camera] WARNING: detectors not found, signal detection disabled")
+    print("[screen_camera] WARNING: detectors not found, signal detection disabled")
 
 # ─────────────────────────────────────────────────────────────
 #  시그널 → 캐릭터 애니메이션 매핑
@@ -52,11 +52,11 @@ _SIGNAL_STYLES = {
 _DEFAULT_STYLE = {"color": (180, 180, 0), "label": "alarm"}
 
 
-class CameraSlideMixin:
+class CameraScreenMixin:
 
 
-    def _build_camera_slide(self):
-        frame = self.slide_camera
+    def _build_screen_camera(self):
+        frame = self.screen_camera
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="개인 공부 - 카메라", anchor="w", font=self._make_font(18)).pack(side="left")
@@ -113,7 +113,7 @@ class CameraSlideMixin:
         # 인덱스일 경우 실제 이름/성장도로 변환
         if isinstance(char_name, int):
             try:
-                with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                     characters = json.load(f)
                 char_growth = int(characters[char_name].get("growth", 0))
                 char_idx = char_name
@@ -122,7 +122,7 @@ class CameraSlideMixin:
                 char_name = None
         else:
             try:
-                with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                     characters = json.load(f)
                 for i, c in enumerate(characters):
                     if c.get("name") == char_name:
@@ -143,7 +143,7 @@ class CameraSlideMixin:
         # type을 찾아서 해당 폴더에서 이미지 로드
         char_type = "baby"
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 characters = json.load(f)
                 if 0 <= char_idx < len(characters):
                     char_type = characters[char_idx].get("type", "baby")
@@ -243,7 +243,7 @@ class CameraSlideMixin:
             char_idx = self._camera_char_idx
             if 0 <= char_idx:
                 try:
-                    with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                    with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                         chars = json.load(f)
                     char = chars[char_idx]
                     growth = int(char.get("growth", 0))
@@ -255,14 +255,14 @@ class CameraSlideMixin:
                     if new_stage_idx != stage_idx:
                         char["type"] = stages[new_stage_idx]
                     chars[char_idx] = char
-                    with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+                    with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                         json.dump(chars, f, ensure_ascii=False, indent=2)
                 except Exception:
                     pass
         
         self.stop_camera()
         self._camera_char_anim_running = False
-        self.show_slide(MAIN)
+        self.show_screen(MAIN)
     
     def _update_study_timer(self):
         """30초마다 성장도 1포인트 추가"""
@@ -284,7 +284,7 @@ class CameraSlideMixin:
             # 캐릭터 성장도 업데이트
             if hasattr(self, '_camera_char_idx') and self._camera_char_idx >= 0:
                 try:
-                    with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                    with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                         chars = json.load(f)
                     char = chars[self._camera_char_idx]
                     growth = int(char.get("growth", 0))
@@ -301,7 +301,7 @@ class CameraSlideMixin:
                         char["type"] = stages[new_stage_idx]
                         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
                         chars[self._camera_char_idx] = char
-                        with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+                        with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                             json.dump(chars, f, ensure_ascii=False, indent=2)
                         # 캐릭터 이미지 다시 로드
                         self._load_camera_character_animation()
@@ -314,7 +314,7 @@ class CameraSlideMixin:
                         growth_percent = min(100, int(display_growth * 100 / 120))
                         self._camera_char_growth.set(display_growth / 120)
                         self._camera_char_growth_label.configure(text=f"{growth_percent}%")
-                        with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+                        with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                             json.dump(chars, f, ensure_ascii=False, indent=2)
                 except Exception:
                     pass
@@ -560,7 +560,7 @@ class CameraSlideMixin:
                     FidgetDetector(),
                     HeartDetector(),
                 ]
-                print(f"[slide_camera] {len(detectors_list)} detectors initialized (parallel)")
+                print(f"[screen_camera] {len(detectors_list)} detectors initialized (parallel)")
             except Exception:
                 import traceback
                 traceback.print_exc()

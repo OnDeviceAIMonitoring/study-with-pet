@@ -1,5 +1,5 @@
 """
-메인 화면(slide1) 빌드 Mixin
+메인 화면(screen_main) 빌드 Mixin
 """
 import os
 import json
@@ -8,17 +8,17 @@ import random
 from PIL import Image
 import customtkinter as ctk
 
-from .slides import MAIN, SELECT_CHAR
+from config import MAIN, SELECT_CHAR
 
 
-class MainSlideMixin:
+class MainScreenMixin:
 
     def _on_personal_study(self):
         # 캐릭터 선택 화면으로 이동
-        self.show_slide(SELECT_CHAR)
+        self.show_screen(SELECT_CHAR)
 
-    def _build_slide1(self):
-        frame = self.slide1
+    def _build_screen_main(self):
+        frame = self.screen_main
         frame.grid_columnconfigure(0, weight=1)
 
         buttons = [
@@ -45,9 +45,9 @@ class MainSlideMixin:
         ]
 
         # ── 캐릭터 라벨 먼저 생성 (z-order상 버튼보다 아래로 위치) ──
-        self._slide1_characters = []
+        self.screen_main_characters = []
         try:
-            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
                 char_list = json.load(f)
         except Exception:
             char_list = []
@@ -89,7 +89,7 @@ class MainSlideMixin:
             frames = char_data["frames"]
             lbl = ctk.CTkLabel(frame, image=frames[0], text="", fg_color="transparent")
             lbl.place(x=px, y=py)
-            self._slide1_characters.append({
+            self.screen_main_characters.append({
                 "frames": frames,
                 "frame_idx": random.randint(0, len(frames) - 1),
                 "frame_cnt": len(frames),
@@ -100,20 +100,20 @@ class MainSlideMixin:
         title = ctk.CTkLabel(frame, text="Study With Pet", font=self._make_font(36))
         title.grid(row=0, column=0, pady=(40, 20))
 
-        self._slide1_buttons = []
+        self.screen_main_buttons = []
         for i, (label, cmd) in enumerate(buttons, start=1):
             btn = ctk.CTkButton(frame, text=label, width=600, height=48, command=cmd, font=self._make_font(16))
             btn.grid(row=i, column=0, pady=12, padx=20)
-            self._slide1_buttons.append(btn)
+            self.screen_main_buttons.append(btn)
 
-        self._slide1_anim_running = True
-        self._slide1_anim_update()
+        self.screen_main_anim_running = True
+        self.screen_main_anim_update()
 
-    def _slide1_anim_update(self):
-        if not getattr(self, "_slide1_anim_running", False):
+    def screen_main_anim_update(self):
+        if not getattr(self, "screen_main_anim_running", False):
             return
-        for c in getattr(self, "_slide1_characters", []):
+        for c in getattr(self, "screen_main_characters", []):
             c["frame_idx"] = (c["frame_idx"] + 1) % c["frame_cnt"]
             if c["label"] is not None:
                 c["label"].configure(image=c["frames"][c["frame_idx"]])
-        self.root.after(200, self._slide1_anim_update)
+        self.root.after(200, self.screen_main_anim_update)

@@ -2,7 +2,7 @@ import os
 import json
 from datetime import date
 
-STUDY_TIME_FILE = "frontend/user/study_time.json"
+STUDY_TIME_FILE = "frontend/data/study_time.json"
 
 def load_study_time(user, mode):
     today = date.today().isoformat()
