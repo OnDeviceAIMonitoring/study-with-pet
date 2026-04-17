@@ -8,10 +8,14 @@ import random
 from PIL import Image
 import customtkinter as ctk
 
-from .slides import MAIN
+from .slides import MAIN, SELECT_CHAR
 
 
 class MainSlideMixin:
+
+    def _on_personal_study(self):
+        # 캐릭터 선택 화면으로 이동
+        self.show_slide(SELECT_CHAR)
 
     def _build_slide1(self):
         frame = self.slide1

@@ -1,17 +1,62 @@
 [
   {
     "name": "maltese",
-    "type": "baby",
-    "growth": 0.8
+    "type": "adult",
+    "growth": 120
   },
   {
-    "name": "border_collie",
+    "name": "maltese",
+    "type": "adult",
+    "growth": 20
+  },
+  {
+    "name": "maltese",
     "type": "crown",
-    "growth": 0.2
+    "growth": 120
   },
   {
     "name": "york",
     "type": "baby",
-    "growth": 0.0
+    "growth": 119
+  },
+  {
+    "name": "york",
+    "type": "adult",
+    "growth": 20
+  },
+  {
+    "name": "york",
+    "type": "crown",
+    "growth": 120
+  },
+  {
+    "name": "border_collie",
+    "type": "baby",
+    "growth": 80
+  },
+  {
+    "name": "border_collie",
+    "type": "adult",
+    "growth": 20
+  },
+  {
+    "name": "border_collie",
+    "type": "crown",
+    "growth": 120
+  },
+  {
+    "name": "rabbit",
+    "type": "baby",
+    "growth": 119
+  },
+  {
+    "name": "rabbit",
+    "type": "adult",
+    "growth": 20
+  },
+  {
+    "name": "rabbit",
+    "type": "crown",
+    "growth": 120
   }
 ]

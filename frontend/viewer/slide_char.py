@@ -20,6 +20,40 @@ class CharSlideMixin:
         return getattr(self, '_slide6_selected', None)
 
     # ──────────────────────────────────────────────
+    # 성장도 및 성장 단계 계산/반영 함수
+    # ──────────────────────────────────────────────
+
+    def update_character_growth(self, char_idx, add_points):
+        """
+        char_idx: characters.json에서의 인덱스
+        add_points: 추가할 성장 포인트(초 단위로 30초당 1포인트)
+        성장도는 누적 포인트로 저장 (0~119: baby, 120~239: adult, 240+: crown)
+        단계: baby → adult → crown
+        """
+        try:
+            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                chars = json.load(f)
+        except Exception:
+            return False
+        if not (0 <= char_idx < len(chars)):
+            return False
+        char = chars[char_idx]
+        growth = int(char.get("growth", 0))
+        growth += add_points
+        # 단계 계산
+        stages = ["baby", "adult", "crown"]
+        stage_idx = stages.index(char.get("type", "baby")) if char.get("type", "baby") in stages else 0
+        # 성장도에 따라 단계 변경
+        new_stage_idx = min(growth // 120, len(stages) - 1)
+        char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
+        if new_stage_idx != stage_idx:
+            char["type"] = stages[new_stage_idx]
+        chars[char_idx] = char
+        with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
+            json.dump(chars, f, ensure_ascii=False, indent=2)
+        return True
+
+    # ──────────────────────────────────────────────
     # slide6 (레거시 – 내부 참조용, 직접 표시 안 함)
     # ──────────────────────────────────────────────
 
@@ -109,6 +143,7 @@ class CharSlideMixin:
                 placeholder.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
                 name = char.get("name", "maltese")
                 ctype = char.get("type", "baby")
+                # 성장 단계(type)가 변경되면 자동으로 해당 폴더의 이미지를 사용
                 tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
                 img_path = None
                 if os.path.isdir(tail_dir):
@@ -142,9 +177,11 @@ class CharSlideMixin:
                     lbl.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
 
                 ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14)).pack(pady=(6, 2))
-                ctk.CTkLabel(card, text=f"성장도: {char.get('growth', 0)}", font=self._make_font(12)).pack()
+                growth_point = int(char.get('growth', 0))
+                growth_percent = min(100, int(growth_point * 100 / 120))
+                ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12)).pack()
                 prog = ctk.CTkProgressBar(card, width=140)
-                prog.set(char.get('growth', 0.5))
+                prog.set(growth_point / 120)
                 prog.pack(pady=8)
                 self._slide6_cards.append(card)
         else:
@@ -207,6 +244,8 @@ class CharSlideMixin:
         visible_characters = characters[self._slide13_page * page_size:(self._slide13_page + 1) * page_size]
         card_width = 160
         self._slide13_images = []
+        self._slide13_anim_data = []  # list of {"label": lbl, "frames": [...], "idx": 0}
+        self._slide13_anim_running = True
 
         for col, char in enumerate(visible_characters):
             card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
@@ -222,37 +261,44 @@ class CharSlideMixin:
 
             name = char.get("name", "maltese")
             ctype = char.get("type", "baby")
+            # 성장 단계(type)가 변경되면 자동으로 해당 폴더의 이미지를 사용
             tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
-            img_path = None
+            frames = []
             if os.path.isdir(tail_dir):
                 files = sorted([f for f in os.listdir(tail_dir) if f.endswith('.png')])
-                if files:
-                    img_path = os.path.join(tail_dir, files[0])
+                target_w, target_h = 140, int(140 * 650 / 430)
+                for fn in files:
+                    try:
+                        pil_img = Image.open(os.path.join(tail_dir, fn)).convert("RGBA")
+                        bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+                        pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                        x = (target_w - pil_img.width) // 2
+                        y = (target_h - pil_img.height) // 2
+                        bg.paste(pil_img, (x, y), pil_img)
+                        ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
+                        frames.append(ctk_img)
+                    except Exception:
+                        continue
+                self._slide13_images.extend(frames)
 
-            if img_path and os.path.exists(img_path):
-                try:
-                    pil_img = Image.open(img_path).convert("RGBA")
-                    target_w, target_h = 140, int(140 * 650 / 430)
-                    bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
-                    pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
-                    x = (target_w - pil_img.width) // 2
-                    y = (target_h - pil_img.height) // 2
-                    bg.paste(pil_img, (x, y), pil_img)
-                    ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
-                    ctk.CTkLabel(placeholder, image=ctk_img, text="").pack(expand=True)
-                    self._slide13_images.append(ctk_img)
-                except Exception:
-                    ctk.CTkLabel(placeholder, text=char.get("display", "캐릭터"),
-                                 font=self._make_font(16)).pack(expand=True)
+            if frames:
+                lbl = ctk.CTkLabel(placeholder, image=frames[0], text="")
+                lbl.pack(expand=True)
+                self._slide13_anim_data.append({"label": lbl, "frames": frames, "idx": 0})
             else:
                 ctk.CTkLabel(placeholder, text=char.get("display", "캐릭터"),
                              font=self._make_font(16)).pack(expand=True)
 
             ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14)).pack(pady=(6, 2))
-            ctk.CTkLabel(card, text=f"성장도: {char.get('growth', 0)}", font=self._make_font(12)).pack()
+            growth_point = int(char.get('growth', 0))
+            growth_percent = min(100, int(growth_point * 100 / 120))
+            ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12)).pack()
             prog = ctk.CTkProgressBar(card, width=140)
-            prog.set(char.get('growth', 0.5))
+            prog.set(growth_point / 120)
             prog.pack(pady=8)
+
+        if self._slide13_anim_data:
+            self._slide13_anim_tick()
 
     def _on_show_characters(self):
         self._slide13_page = 0
@@ -260,7 +306,19 @@ class CharSlideMixin:
         from .slides import CHAR_LIST
         self.show_slide(CHAR_LIST)
 
+    def _slide13_anim_tick(self):
+        if not getattr(self, '_slide13_anim_running', False):
+            return
+        for entry in self._slide13_anim_data:
+            entry["idx"] = (entry["idx"] + 1) % len(entry["frames"])
+            try:
+                entry["label"].configure(image=entry["frames"][entry["idx"]])
+            except Exception:
+                pass
+        self.root.after(350, self._slide13_anim_tick)
+
     def _rebuild_slide13(self):
+        self._slide13_anim_running = False
         for widget in self.slide13.winfo_children():
             widget.destroy()
         self._build_slide13()
@@ -512,9 +570,11 @@ class CharSlideMixin:
                     lbl.bind("<Button-1>", lambda e, fn=on_card_click: fn())
 
                 ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14)).pack(pady=(6, 2))
-                ctk.CTkLabel(card, text=f"성장도: {char.get('growth', 0)}", font=self._make_font(12)).pack()
+                growth_point = int(char.get('growth', 0))
+                growth_percent = min(100, int(growth_point * 100 / 120))
+                ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12)).pack()
                 prog = ctk.CTkProgressBar(card, width=140)
-                prog.set(char.get('growth', 0.5))
+                prog.set(growth_point / 120)
                 prog.pack(pady=8)
         else:
             ctk.CTkLabel(content, text="보유한 캐릭터가 없습니다.", font=self._make_font(16)).pack(pady=40)
