@@ -175,6 +175,9 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             self.slide_group.pack(fill="both", expand=True)
 
         elif slide_no == PERSONAL_CAMERA:
+            for child in self.slide_camera.winfo_children():
+                child.destroy()
+            self._build_camera_slide()
             self.slide_camera.pack(fill="both", expand=True)
 
         elif slide_no == CHAR_LIST:
