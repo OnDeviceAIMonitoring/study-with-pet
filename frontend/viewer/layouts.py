@@ -144,7 +144,7 @@ def compose_group(
         raise RuntimeError("Not enough width for center/main area.")
 
     full_canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
-    full_canvas[:, :left_reserved_width] = (18, 18, 18)
+    full_canvas[:, :left_reserved_width] = (43, 43, 43)  # CTk dark mode 프레임 배경색과 동일
     # 왼쪽 reserved 영역에 캐릭터 오버레이 렌더링
     if character_overlay:
         left_canvas = full_canvas[:, :left_reserved_width]
