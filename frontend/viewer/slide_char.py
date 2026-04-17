@@ -68,14 +68,14 @@ class CharSlideMixin:
 
         content = ctk.CTkFrame(middle)
         content.pack(side="left", fill="both", expand=True, padx=8)
-        content.grid_columnconfigure((0, 1, 2), weight=1)
+        content.grid_columnconfigure((0, 1, 2), weight=1, uniform="card")
 
         next_btn = ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14), command=on_next_page)
         next_btn.pack(side="left", padx=(8, 0))
 
         visible_characters = characters[self._slide6_page * page_size:(self._slide6_page + 1) * page_size]
 
-        card_width = 110
+        card_width = 160
         self._slide6_selected = None
         self._slide6_cards = []
 
@@ -199,13 +199,13 @@ class CharSlideMixin:
 
         content = ctk.CTkFrame(middle)
         content.pack(side="left", fill="both", expand=True, padx=8)
-        content.grid_columnconfigure((0, 1, 2), weight=1)
+        content.grid_columnconfigure((0, 1, 2), weight=1, uniform="card")
 
         ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14),
                       command=on_next_page).pack(side="left", padx=(8, 0))
 
         visible_characters = characters[self._slide13_page * page_size:(self._slide13_page + 1) * page_size]
-        card_width = 110
+        card_width = 160
         self._slide13_images = []
 
         for col, char in enumerate(visible_characters):
@@ -316,14 +316,14 @@ class CharSlideMixin:
 
         content = ctk.CTkFrame(middle)
         content.pack(side="left", fill="both", expand=True, padx=8)
-        content.grid_columnconfigure((0, 1, 2), weight=1)
+        content.grid_columnconfigure((0, 1, 2), weight=1, uniform="card")
 
         ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14),
                       command=on_next_page).pack(side="left", padx=(8, 0))
 
         visible_candidates = candidates[self._slide14_page * page_size:(self._slide14_page + 1) * page_size]
         self._slide14_images = []
-        card_width = 110
+        card_width = 160
 
         def on_card_click(idx):
             try:
@@ -332,10 +332,18 @@ class CharSlideMixin:
             except Exception:
                 chars = []
             sel_cand = visible_candidates[idx]
-            if any(c.get("name") == sel_cand["name"] for c in chars):
+            # 이름, 타입, 성장도가 모두 같은 캐릭터가 있으면 중복으로 간주
+            sel_type = sel_cand.get("type", "baby")
+            sel_growth = sel_cand.get("growth", 0.0)
+            if any(
+                c.get("name") == sel_cand["name"] and
+                c.get("type") == sel_type and
+                c.get("growth") == sel_growth
+                for c in chars
+            ):
                 self._show_info_dialog("중복 생성", f"{sel_cand['name']} 캐릭터는\n이미 생성되어 있습니다.")
                 return
-            chars.append({"name": sel_cand["name"], "type": "baby", "growth": 0.0})
+            chars.append({"name": sel_cand["name"], "type": sel_type, "growth": sel_growth})
             with open("frontend/user/characters.json", "w", encoding="utf-8") as f:
                 json.dump(chars, f, ensure_ascii=False, indent=2)
             self._rebuild_slide6()
@@ -432,13 +440,13 @@ class CharSlideMixin:
 
         content = ctk.CTkFrame(middle)
         content.pack(side="left", fill="both", expand=True, padx=8)
-        content.grid_columnconfigure((0, 1, 2), weight=1)
+        content.grid_columnconfigure((0, 1, 2), weight=1, uniform="card")
 
         ctk.CTkButton(middle, text=">", width=50, font=self._make_font(14),
                       command=on_next_page).pack(side="left", padx=(8, 0))
 
         visible_characters = characters[self._char_select_page * page_size:(self._char_select_page + 1) * page_size]
-        card_width = 110
+        card_width = 160
         self._char_select_images = []
 
         if visible_characters:
