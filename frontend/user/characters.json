@@ -2,7 +2,7 @@
   {
     "name": "maltese",
     "type": "adult",
-    "growth": 120
+    "growth": 221
   },
   {
     "name": "maltese",
@@ -16,8 +16,8 @@
   },
   {
     "name": "york",
-    "type": "baby",
-    "growth": 119
+    "type": "adult",
+    "growth": 123
   },
   {
     "name": "york",
@@ -46,8 +46,8 @@
   },
   {
     "name": "rabbit",
-    "type": "baby",
-    "growth": 119
+    "type": "adult",
+    "growth": 188
   },
   {
     "name": "rabbit",

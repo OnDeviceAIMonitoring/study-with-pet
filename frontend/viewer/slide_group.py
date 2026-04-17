@@ -33,8 +33,18 @@ class GroupSlideMixin:
         self.group_img_label = ctk.CTkLabel(frame, text="")
         self.group_img_label.pack(fill="both", expand=True, padx=10, pady=10)
 
+        # 개인방과 동일한 캐릭터 UI
+        char_area = ctk.CTkFrame(frame, fg_color="transparent")
+        char_area.place(relx=0.05, rely=0.7, anchor="w")
+        self._group_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
+        self._group_char_label.pack()
+        self._group_char_growth = ctk.CTkProgressBar(char_area, width=120)
+        self._group_char_growth.pack(pady=(2, 0))
+
     def _on_group_back(self):
         self._socket_generation += 1
+        self._group_char_anim_running = False
+        self._stop_group_study_session(save=True)
         self.stop_camera()
         with self.lock:
             self.frame_map.clear()
@@ -282,6 +292,7 @@ class GroupSlideMixin:
             self.frame_map.clear()
 
         self.group_slide_title.configure(text=f"단체 공부  ·  {room_name}")
+        self._start_group_study_session()
         socketio_client.start_background(self, self._socket_generation)
 
         self.show_slide(GROUP_ROOM)

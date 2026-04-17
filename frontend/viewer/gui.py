@@ -10,6 +10,7 @@ ViewerApp 메인 진입점
 
 from datetime import datetime
 import json
+import time
 import threading
 import urllib.request
 import urllib.error
@@ -41,6 +42,7 @@ from .slide_group import GroupSlideMixin
 from .slide_camera import CameraSlideMixin
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
+from .study_time import save_study_time
 
 # frontend/ 디렉터리를 경로에 추가하여 user 패키지 임포트
 _frontend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -69,6 +71,21 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
         # 대기 중인 단체방 입장 정보
         self._pending_group_room = None
         self._selected_char = None
+
+        # 단체방 왼쪽 캐릭터 오버레이 상태
+        self._group_char_frames = []
+        self._group_char_frame_idx = 0
+        self._group_char_last_tick = 0.0
+        self._group_char_name = ""
+        self._group_char_growth_percent = 0
+        self._group_char_idx = -1
+        self._group_char_anim_running = False
+
+        # 단체방 공부 시간/성장 상태
+        self._group_study_running = False
+        self._group_study_start_time = 0.0
+        self._group_study_elapsed_seconds = 0
+        self._group_study_accumulated_points = 0
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -172,6 +189,7 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             self.slide_char_select.pack(fill="both", expand=True)
 
         elif slide_no == GROUP_ROOM:
+            self._reload_group_character_overlay()
             self.slide_group.pack(fill="both", expand=True)
 
         elif slide_no == PERSONAL_CAMERA:
@@ -232,6 +250,8 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             self.img_label.configure(image=img_tk)
 
         elif slide == GROUP_ROOM:
+            self._tick_group_study_growth()
+
             with self.lock:
                 local_frame = None if self.latest_frame is None else self.latest_frame.copy()
                 frame_map_copy = dict(self.frame_map)
@@ -269,6 +289,135 @@ class ViewerApp(MainSlideMixin, CharSlideMixin, GroupSlideMixin, CameraSlideMixi
             if hasattr(self, "group_img_label"):
                 self.group_img_label.image = img_tk
                 self.group_img_label.configure(image=img_tk)
+
+    def _start_group_study_session(self):
+        self._group_study_running = True
+        self._group_study_start_time = time.time()
+        self._group_study_elapsed_seconds = 0
+        self._group_study_accumulated_points = 0
+
+    def _stop_group_study_session(self, save: bool = True):
+        if not self._group_study_running and not save:
+            return
+
+        self._group_study_running = False
+
+        if save:
+            # 분 단위 저장(최소 1분)
+            study_minutes = max(1, self._group_study_elapsed_seconds // 60)
+            user_name = getattr(self.args, "name", "user")
+            save_study_time(user_name, "group", study_minutes)
+
+    def _tick_group_study_growth(self):
+        if not self._group_study_running:
+            return
+
+        self._group_study_elapsed_seconds = int(time.time() - self._group_study_start_time)
+        new_points = self._group_study_elapsed_seconds // 30
+        if new_points <= self._group_study_accumulated_points:
+            return
+
+        add_points = new_points - self._group_study_accumulated_points
+        self._group_study_accumulated_points = new_points
+
+        if getattr(self, "_group_char_idx", -1) < 0:
+            return
+
+        # 개인방과 동일하게 30초당 1포인트 누적
+        updated = self.update_character_growth(self._group_char_idx, add_points)
+        if updated:
+            # 단계가 바뀌면 type 폴더가 바뀌므로 오버레이를 다시 로드
+            self._reload_group_character_overlay()
+
+    def _reload_group_character_overlay(self):
+        """단체방 캐릭터 위젯(개인방과 동일한 UI)에 프레임/성장 정보를 반영합니다."""
+        self._group_char_frames = []
+        self._group_char_frame_idx = 0
+        self._group_char_last_tick = time.monotonic()
+        self._group_char_name = ""
+        self._group_char_growth_percent = 0
+        self._group_char_anim_running = False
+
+        if hasattr(self, "_group_char_label"):
+            self._group_char_label.configure(image=None)
+        if hasattr(self, "_group_char_growth"):
+            self._group_char_growth.set(0.0)
+
+        selected_value = getattr(self, "_selected_char", None)
+        if selected_value is None:
+            return
+
+        try:
+            with open("frontend/user/characters.json", "r", encoding="utf-8") as f:
+                characters = json.load(f)
+        except Exception:
+            return
+
+        selected = None
+        selected_idx = -1
+        if isinstance(selected_value, int):
+            if 0 <= selected_value < len(characters):
+                selected_idx = selected_value
+                selected = characters[selected_idx]
+        elif isinstance(selected_value, str):
+            for i, c in enumerate(characters):
+                if c.get("name") == selected_value:
+                    selected_idx = i
+                    selected = c
+                    break
+        if selected is None:
+            return
+
+        self._group_char_name = selected.get("name", "")
+        self._group_char_idx = selected_idx
+        growth_points = int(selected.get("growth", 0))
+        display_growth = growth_points % 120
+        self._group_char_growth_percent = min(100, int(display_growth * 100 / 120))
+        if hasattr(self, "_group_char_growth"):
+            self._group_char_growth.set(display_growth / 120)
+        ctype = selected.get("type", "baby")
+
+        tail_dir = f"frontend/assets/characters/{self._group_char_name}/{ctype}/tail"
+        if not os.path.isdir(tail_dir):
+            return
+
+        files = sorted([f for f in os.listdir(tail_dir) if f.endswith(".png")])
+        if not files:
+            return
+
+        # 개인방 캐릭터 크기와 동일하게 고정
+        target_w = 120
+        target_h = int(120 * 650 / 430)
+
+        for fn in files:
+            img_path = os.path.join(tail_dir, fn)
+            try:
+                pil_img = Image.open(img_path).convert("RGBA")
+                bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+                pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                ox = (target_w - pil_img.width) // 2
+                oy = (target_h - pil_img.height) // 2
+                bg.paste(pil_img, (ox, oy), pil_img)
+                ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
+                self._group_char_frames.append(ctk_img)
+            except Exception:
+                continue
+
+        if self._group_char_frames and hasattr(self, "_group_char_label"):
+            self._group_char_label.configure(image=self._group_char_frames[0])
+            self._group_char_anim_running = True
+            self._group_char_anim_tick()
+
+    def _group_char_anim_tick(self):
+        if not self._group_char_anim_running or not self._group_char_frames:
+            return
+        self._group_char_frame_idx = (self._group_char_frame_idx + 1) % len(self._group_char_frames)
+        try:
+            if hasattr(self, "_group_char_label"):
+                self._group_char_label.configure(image=self._group_char_frames[self._group_char_frame_idx])
+        except Exception:
+            pass
+        self.root.after(350, self._group_char_anim_tick)
 
     # ──────────────────────────────────────────────
     # REST API 호출

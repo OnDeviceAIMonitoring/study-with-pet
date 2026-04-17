@@ -41,11 +41,9 @@ class CameraSlideMixin:
         self._camera_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
         self._camera_char_label.pack()
         self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14, "bold"))
-        self._camera_char_name.pack(pady=(4,0))
         self._camera_char_growth = ctk.CTkProgressBar(char_area, width=120)
         self._camera_char_growth.pack(pady=(2,0))
         self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10))
-        self._camera_char_growth_label.pack(pady=(2,0))
 
         self._camera_char_frames = []
         self._camera_char_frame_idx = 0

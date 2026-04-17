@@ -4,12 +4,38 @@
 원본의 `compose_grid`와 `compose_group`를 분리했습니다.
 """
 
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import cv2
 
 from .frame_utils import fit_frame, draw_label, build_waiting_frame
+
+
+def _alpha_blit(dst_bgr: np.ndarray, src_rgba: np.ndarray, x: int, y: int) -> None:
+    """RGBA 이미지를 BGR 캔버스 위에 알파 블렌딩합니다."""
+    h, w = src_rgba.shape[:2]
+    if h <= 0 or w <= 0:
+        return
+
+    y0 = max(0, y)
+    x0 = max(0, x)
+    y1 = min(dst_bgr.shape[0], y + h)
+    x1 = min(dst_bgr.shape[1], x + w)
+    if y0 >= y1 or x0 >= x1:
+        return
+
+    src_y0 = y0 - y
+    src_x0 = x0 - x
+    src_y1 = src_y0 + (y1 - y0)
+    src_x1 = src_x0 + (x1 - x0)
+
+    src = src_rgba[src_y0:src_y1, src_x0:src_x1]
+    alpha = (src[:, :, 3:4].astype(np.float32) / 255.0)
+    src_bgr = src[:, :, :3][:, :, ::-1].astype(np.float32)
+    dst = dst_bgr[y0:y1, x0:x1].astype(np.float32)
+    blended = (src_bgr * alpha) + (dst * (1.0 - alpha))
+    dst_bgr[y0:y1, x0:x1] = blended.astype(np.uint8)
 
 
 def compose_grid(
@@ -102,6 +128,7 @@ def compose_group(
     main_height: int,
     sub_width: int,
     sub_height: int,
+    character_overlay: Optional[dict] = None,
 ):
     """단체 공부용 레이아웃: 중앙에 메인, 오른쪽에 세로로 참가자 타일 배치"""
     if left_reserved_width >= canvas_width:
@@ -118,15 +145,27 @@ def compose_group(
 
     full_canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
     full_canvas[:, :left_reserved_width] = (18, 18, 18)
-    cv2.putText(
-        full_canvas,
-        "Character Area",
-        (20, 34),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (170, 170, 170),
-        2,
-    )
+    # 왼쪽 reserved 영역에 캐릭터 오버레이 렌더링
+    if character_overlay:
+        left_canvas = full_canvas[:, :left_reserved_width]
+        char_frame = character_overlay.get("frame")
+        growth_percent = int(character_overlay.get("growth_percent", 0))
+        bar_w = 120
+        bar_h = 12
+        bar_x = max(0, (left_reserved_width - bar_w) // 2)
+        bar_y = canvas_height - 40
+
+        if isinstance(char_frame, np.ndarray) and char_frame.ndim == 3 and char_frame.shape[2] == 4:
+            h, w = char_frame.shape[:2]
+            cx = max(0, (left_reserved_width - w) // 2)
+            cy = max(50, (canvas_height - h) // 2)
+            _alpha_blit(left_canvas, char_frame, cx, cy)
+            # 개인방처럼 이미지 바로 아래에 진행바 배치
+            bar_y = min(canvas_height - 40, cy + h + 8)
+
+        cv2.rectangle(left_canvas, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (55, 55, 55), -1)
+        fill_w = int(bar_w * max(0, min(100, growth_percent)) / 100)
+        cv2.rectangle(left_canvas, (bar_x, bar_y), (bar_x + fill_w, bar_y + bar_h), (70, 170, 255), -1)
 
     right_canvas = full_canvas[:, left_reserved_width:]
 

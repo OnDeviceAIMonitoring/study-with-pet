@@ -515,8 +515,11 @@ class CharSlideMixin:
                 card.grid_propagate(False)
                 content.grid_rowconfigure(0, weight=1)
 
-                def on_card_click(n=char.get("name")):
-                    self._selected_char = n
+                absolute_idx = (self._char_select_page * page_size) + col
+
+                def on_card_click(selected_idx=absolute_idx):
+                    # 이름이 아닌 고유 인덱스로 선택값 저장하여 동일 이름 캐릭터 충돌 방지
+                    self._selected_char = selected_idx
                     self.start_camera()
                     pending = getattr(self, "_pending_group_room", None)
                     if pending:
