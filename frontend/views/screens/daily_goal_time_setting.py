@@ -67,8 +67,9 @@ class DailyGoalTimeSettingScreenMixin:
         )
         guide_label.pack(pady=(30, 5))
 
-        # 연속 달성 일수
-        streak = get_consecutive_goal_days(self.args.name)
+        # 연속 달성 일수 (저장 키에 따라 조회)
+        goal_key = getattr(self, "_daily_goal_key", self.args.name)
+        streak = get_consecutive_goal_days(goal_key)
         streak_text = f"연속 달성 {streak}일째!" if streak > 0 else ""
         self._daily_goal_streak_label = ctk.CTkLabel(
             left_panel, text=streak_text,
@@ -225,8 +226,9 @@ class DailyGoalTimeSettingScreenMixin:
         if total_minutes <= 0:
             total_minutes = 0  # 0분도 허용 (스킵과 동일)
 
-        # 목표 시간 저장
-        save_daily_goal(self.args.name, total_minutes)
+        # 목표 시간 저장 (개인=유저명, 단체=방코드)
+        goal_key = getattr(self, "_daily_goal_key", self.args.name)
+        save_daily_goal(goal_key, total_minutes)
 
         # 애니메이션 정지
         self._daily_goal_char_anim_running = False
@@ -238,10 +240,17 @@ class DailyGoalTimeSettingScreenMixin:
             pending()
 
     def _on_daily_goal_back(self):
-        """뒤로가기 — 메인 화면으로 돌아감"""
+        """뒤로가기 — 진입 경로에 따라 메인 또는 단체방 목록으로 복귀"""
         self._daily_goal_char_anim_running = False
         self._daily_goal_next_action = None
-        self.show_screen(MAIN)
+        # 단체방 흐름 중이면 GROUP_LIST, 아니면 MAIN으로 복귀
+        if self.nav_state.pending_group_room is not None:
+            self.nav_state.pending_group_room = None
+            self._pending_group_room = None  # 호환성
+            from config import GROUP_LIST
+            self.show_screen(GROUP_LIST)
+        else:
+            self.show_screen(MAIN)
 
     def _on_daily_goal_hide(self):
         """화면 숨김 시 애니메이션 정지"""

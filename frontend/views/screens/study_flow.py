@@ -1,8 +1,9 @@
 """개인/그룹 공통 화면 흐름(Flow) Mixin."""
 
-from config import GROUP_LIST, GROUP_ROOM, MAIN, PERSONAL_CAMERA, SELECT_CHAR
+from config import DAILY_GOAL, GROUP_LIST, GROUP_ROOM, MAIN, PERSONAL_CAMERA, SELECT_CHAR
 from services import socketio_client
 from services.character_store import load_characters, save_characters, touch_character
+from services.study_time import load_daily_goal
 
 
 class StudyFlowMixin:
@@ -13,6 +14,17 @@ class StudyFlowMixin:
         """캐릭터 선택 화면을 거쳐 단체방에 입장합니다."""
         self.nav_state.pending_group_room = (room_code, room_name)
         self._pending_group_room = (room_code, room_name)  # 호환성
+
+        # 단체방 기준으로 오늘 목표 미설정 시 목표 입력 화면을 먼저 표시
+        if load_daily_goal(room_code) is None:
+            self._daily_goal_key = room_code  # 저장 키: 방코드
+            self._daily_goal_next_action = self._continue_group_room_flow
+            self.show_screen(DAILY_GOAL)
+            return
+        self._continue_group_room_flow()
+
+    def _continue_group_room_flow(self):
+        """목표 설정 완료 후 캐릭터 선택으로 진행"""
         self._screen_char_select_page = 0
         self._refresh_char_select()
         self.show_screen(SELECT_CHAR)

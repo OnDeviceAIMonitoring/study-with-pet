@@ -2,23 +2,14 @@
 
 import customtkinter as ctk
 
-from config import MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN, DAILY_GOAL
+from config import MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN
 from services import room_manager
-from services.study_time import load_daily_goal
 
 
 class GroupScreenMixin:
 
     def _on_group_study(self):
-        # 오늘 목표 시간 미설정이면 목표 입력 화면을 먼저 표시
-        if load_daily_goal(self.args.name) is None:
-            self._daily_goal_next_action = self._on_group_study_continue
-            self.show_screen(DAILY_GOAL)
-            return
-        self._on_group_study_continue()
-
-    def _on_group_study_continue(self):
-        """목표 설정 완료 후 단체방 목록으로 이동"""
+        # 단체방 목록 화면으로 이동 (목표 시간 체크는 방 선택 후 수행)
         self.show_screen(GROUP_LIST)
 
     # ──────────────────────────────────────────────

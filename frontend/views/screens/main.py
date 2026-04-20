@@ -16,8 +16,9 @@ from services.study_time import load_daily_goal
 class MainScreenMixin:
 
     def _on_personal_study(self):
-        # 오늘 목표 시간 미설정이면 목표 입력 화면으로 이동
+        # 개인 목표: 유저명 기준으로 오늘 미설정 시 목표 입력 화면 표시
         if load_daily_goal(self.args.name) is None:
+            self._daily_goal_key = self.args.name  # 저장 키: 유저명
             self._daily_goal_next_action = self._on_personal_study_continue
             self.show_screen(DAILY_GOAL)
             return
