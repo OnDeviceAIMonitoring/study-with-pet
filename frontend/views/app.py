@@ -224,7 +224,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             self._build_screen_camera()
         
         def _on_show_char_list():
-            _ensure_screen_built(CHAR_LIST)
+            self._rebuild_screen_char_list()
 
         def _on_show_create_char():
             self._build_screen_char_create()

@@ -209,6 +209,10 @@ class CharScreenMixin:
 
     def _build_screen_char_list(self):
         frame = self.screen_char_list
+        self._screen_char_list_anim_running = False
+        for widget in frame.winfo_children():
+            widget.destroy()
+
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20)).pack(side="left")
@@ -312,7 +316,6 @@ class CharScreenMixin:
 
     def _on_show_characters(self):
         self._screen_char_list_page = 0
-        self._rebuild_screen_char_list()
         from config import CHAR_LIST
         self.show_screen(CHAR_LIST)
 
