@@ -45,8 +45,8 @@ class PersonalStudyMixin:
         self._study_time_label = ctk.CTkLabel(top, text="공부시간: 00:00", font=self._make_font(14))
         self._study_time_label.pack(side="left", padx=20)
 
-        ctk.CTkButton(top, text="돌아가기", width=80, command=self._on_camera_back,
-                      font=self._make_font(12)).pack(side="right")
+        ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_camera_back,
+                      font=self._make_font(14)).pack(side="right")
 
         # 카메라 피드 라벨
         self.img_label = ctk.CTkLabel(frame, text="")

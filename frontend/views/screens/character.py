@@ -60,14 +60,14 @@ class CharScreenMixin:
         top.pack(fill="x", padx=10, pady=8)
         title = ctk.CTkLabel(top, text="캐릭터 선택 (성장시킬 캐릭터)", anchor="w", font=self._make_font(20))
         title.pack(side="left")
-        back_top_btn = ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12),
+        back_top_btn = ctk.CTkButton(top, text="뒤로가기", width=80, height=36, font=self._make_font(14),
                                      command=lambda: self.show_screen(MAIN))
         back_top_btn.pack(side="right", padx=(0, 6))
 
         def on_create_character():
             self._screen_char_create_page = 0
             self.show_screen(CREATE_CHAR)
-        create_btn = ctk.CTkButton(top, text="캐릭터 생성", width=110, height=32,
+        create_btn = ctk.CTkButton(top, text="캐릭터 생성", width=110, height=36,
                                    font=self._make_font(14), command=on_create_character)
         create_btn.pack(side="right", padx=(0, 6))
 
@@ -216,7 +216,7 @@ class CharScreenMixin:
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20)).pack(side="left")
-        ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12),
+        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, font=self._make_font(14),
                       command=lambda: self.show_screen(MAIN)).pack(side="right")
 
         middle = ctk.CTkFrame(frame)
@@ -348,7 +348,7 @@ class CharScreenMixin:
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="캐릭터 생성", anchor="w", font=self._make_font(20)).pack(side="left")
-        ctk.CTkButton(top, text="돌아가기", width=80, font=self._make_font(12),
+        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, font=self._make_font(14),
                       command=lambda: self.show_screen(SELECT_CHAR)).pack(side="right")
 
         middle = ctk.CTkFrame(frame)
@@ -459,13 +459,13 @@ class CharScreenMixin:
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="캐릭터 선택", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=self._on_char_select_back,
+        ctk.CTkButton(top, text="뒤로가기", height=36, command=self._on_char_select_back,
                       font=self._make_font(14)).pack(side="right", padx=(0, 6))
 
         def on_create_character():
             self._screen_char_create_page = 0
             self.show_screen(CREATE_CHAR)
-        ctk.CTkButton(top, text="캐릭터 생성", width=110, height=32, font=self._make_font(14),
+        ctk.CTkButton(top, text="캐릭터 생성", height=36, font=self._make_font(14),
                       command=on_create_character).pack(side="right", padx=(0, 6))
 
         middle = ctk.CTkFrame(frame)

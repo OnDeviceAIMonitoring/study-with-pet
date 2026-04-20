@@ -21,7 +21,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_screen(MAIN),
+        ctk.CTkButton(top, text="뒤로가기", height=36, command=lambda: self.show_screen(MAIN),
                       font=self._make_font(14)).pack(side="right")
 
         self.group_list_scroll = ctk.CTkScrollableFrame(
@@ -100,7 +100,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_screen(GROUP_LIST),
+        ctk.CTkButton(top, text="뒤로가기", height=36, command=lambda: self.show_screen(GROUP_LIST),
                       font=self._make_font(14)).pack(side="right")
 
         wrap = ctk.CTkFrame(frame, fg_color="transparent")
@@ -172,7 +172,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", padx=10, pady=8)
         ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20, "bold")).pack(side="left")
-        ctk.CTkButton(top, text="←", width=40, command=lambda: self.show_screen(GROUP_LIST),
+        ctk.CTkButton(top, text="뒤로가기", height=36, command=lambda: self.show_screen(GROUP_LIST),
                       font=self._make_font(14)).pack(side="right")
 
         wrap = ctk.CTkFrame(frame, fg_color="transparent")
