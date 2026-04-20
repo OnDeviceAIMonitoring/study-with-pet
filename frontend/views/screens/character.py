@@ -396,18 +396,10 @@ class CharScreenMixin:
         def on_card_click(idx):
             chars = load_characters(sort_by_last_accessed=False)
             sel_cand = visible_candidates[idx]
-            # 신규 생성 캐릭터는 growth=0으로 시작하므로 동일 이름+growth=0이면 중복으로 간주
-            sel_growth = int(sel_cand.get("growth", 0))
-            if any(
-                c.get("name") == sel_cand["name"] and
-                int(c.get("growth", 0)) == sel_growth
-                for c in chars
-            ):
-                self._show_info_dialog("중복 생성", f"{sel_cand['name']} 캐릭터는\n이미 생성되어 있습니다.")
-                return
-            chars.append(new_character(sel_cand["name"], sel_growth))
+            chars.append(new_character(sel_cand["name"], 0))
             save_characters(chars)
             self._rebuild_screen_char_legacy()
+            self.show_screen(SELECT_CHAR)
 
         for col, cand in enumerate(visible_candidates):
             card = ctk.CTkFrame(content, width=card_width, corner_radius=8)
