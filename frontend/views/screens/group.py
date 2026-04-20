@@ -1,54 +1,12 @@
-"""
-단체방 관련 슬라이드 Mixin
-- screen_group_list           : 단체방 목록 (GROUP_LIST)
-- screen_group      : 단체방 공부 화면 (GROUP_ROOM)
-- screen_group_join : 단체방 참가 (GROUP_JOIN)
-- screen_group_create : 단체방 생성 (GROUP_CREATE)
-"""
-import json
-import threading
+"""단체방 관련 화면 UI Mixin."""
 
 import customtkinter as ctk
 
-from config import MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN, GROUP_ROOM, SELECT_CHAR
-from services import socketio_client
+from config import MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN
 from services import room_manager
 
 
 class GroupScreenMixin:
-
-    # ──────────────────────────────────────────────
-    # screen_group : 단체방 공부 화면 (GROUP_ROOM)
-    # ──────────────────────────────────────────────
-
-    def _build_screen_group(self):
-        frame = self.screen_group
-        top = ctk.CTkFrame(frame)
-        top.pack(fill="x", padx=10, pady=8)
-        self.group_screen_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18))
-        self.group_screen_title.pack(side="left")
-        ctk.CTkButton(top, text="← 방 목록", width=90, command=self._on_group_back,
-                      font=self._make_font(12)).pack(side="right")
-
-        self.group_img_label = ctk.CTkLabel(frame, text="")
-        self.group_img_label.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # 개인방과 동일한 캐릭터 UI
-        char_area = ctk.CTkFrame(frame, fg_color="transparent")
-        char_area.place(relx=0.05, rely=0.7, anchor="w")
-        self._group_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
-        self._group_char_label.pack()
-        self._group_char_growth = ctk.CTkProgressBar(char_area, width=120)
-        self._group_char_growth.pack(pady=(2, 0))
-
-    def _on_group_back(self):
-        self._socket_generation += 1
-        self._group_char_anim_running = False
-        self._stop_group_study_session(save=True)
-        self.stop_camera()
-        with self.lock:
-            self.frame_map.clear()
-        self.show_screen(GROUP_LIST)
 
     def _on_group_study(self):
         self.show_screen(GROUP_LIST)
@@ -275,27 +233,3 @@ class GroupScreenMixin:
 
         self._call_api("/rooms/create", {"name": name, "room_code": code}, on_result)
 
-    # ──────────────────────────────────────────────
-    # 공통 유틸리티
-    # ──────────────────────────────────────────────
-
-    def _start_group_room_flow(self, room_code: str, room_name: str):
-        """캐릭터 선택 화면을 거쳐 단체방에 입장합니다."""
-        self._pending_group_room = (room_code, room_name)
-        self._screen_char_select_page = 0
-        self._refresh_char_select()
-        self.show_screen(SELECT_CHAR)
-
-    def _enter_group_room(self, room_code: str, room_name: str):
-        """단체방 공부 세션을 시작합니다."""
-        self._socket_generation += 1
-        self.args.room = room_code
-        with self.lock:
-            self.frame_map.clear()
-
-        self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
-        self._start_group_study_session()
-        socketio_client.start_background(self, self._socket_generation)
-
-        self.show_screen(GROUP_ROOM)
-        self.start_camera()

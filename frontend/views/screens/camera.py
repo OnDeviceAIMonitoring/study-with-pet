@@ -32,8 +32,10 @@ except ImportError:
 class CameraScreenMixin:
 
     def start_camera(self, camera_index: int = 0):
-        if self.camera_running:
+        if self.camera_state.running:
             return
+        self.camera_state.running = True
+        # 기존 호환성 유지
         self.camera_running = True
 
         # 공유 상태
@@ -54,7 +56,7 @@ class CameraScreenMixin:
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.args.canvas_height)
             except Exception:
                 pass
-            while self.camera_running:
+            while self.camera_state.running:
                 ret, frame = cap.read()
                 if not ret:
                     time.sleep(0.03)
@@ -201,7 +203,8 @@ class CameraScreenMixin:
                     if elapsed >= _CALIB_MIN_SEC and _all_detectors_calibrated(detectors_list):
                         _calibrating = False
                     with self.lock:
-                        self.latest_frame = frame
+                        self.camera_state.latest_frame = frame
+                        self.latest_frame = frame  # 호환성
                     continue
 
                 all_signals = []
@@ -280,11 +283,13 @@ class CameraScreenMixin:
 
                 cv2.putText(frame, f"FPS:{fps:.1f}", (w_f - 110, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1)
 
-                with self._camera_signal_lock:
-                    self._camera_current_signal = top_signal
+                with self.camera_state.signal_lock:
+                    self.camera_state.current_signal = top_signal
+                    self._camera_current_signal = top_signal  # 호환성
 
                 with self.lock:
-                    self.latest_frame = frame
+                    self.camera_state.latest_frame = frame
+                    self.latest_frame = frame  # 호환성
                 time.sleep(0.01)
 
         self._capture_thread = threading.Thread(target=capture_loop, daemon=True)
@@ -309,9 +314,10 @@ class CameraScreenMixin:
         self._render_thread.start()
 
     def stop_camera(self):
-        if not self.camera_running:
+        if not self.camera_state.running:
             return
-        self.camera_running = False
+        self.camera_state.running = False
+        self.camera_running = False  # 호환성
 
         for t in getattr(self, "_detector_threads", []):
             t.join(timeout=1.0)

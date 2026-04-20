@@ -10,7 +10,7 @@ SIGNAL_TO_ANIM = {
 DEFAULT_ANIM = "tail"        # 시그널 없음 -> 꼬리 흔들기 (평상시)
 
 # 시그널 우선순위 (앞에 있을수록 우선)
-SIGNAL_PRIORITY = ["DROWSINESS", "OFF_TASK", "LOW_FOCUS", "HEART"]
+SIGNAL_PRIORITY = ["HEART", "DROWSINESS", "OFF_TASK", "LOW_FOCUS"]
 
 # 시그널 종류별 색상/라벨 (카메라 영상 알림 바용)
 SIGNAL_STYLES = {

@@ -23,3 +23,4 @@ htmlcov/
 Thumbs.db
 
 frontend/data/study_time.json
+frontend/data/characters.json

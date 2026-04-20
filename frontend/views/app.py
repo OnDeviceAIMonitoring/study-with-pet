@@ -36,16 +36,19 @@ from .screens import (
     MainScreenMixin,
     CharScreenMixin,
     GroupScreenMixin,
+    StudyFlowMixin,
     GroupStudyMixin,
     PersonalStudyMixin,
     StudyGrowthMixin,
     CameraScreenMixin,
 )
+from .states import CameraState, PersonalStudyState, GroupStudyState, NavigationState
+from .screen_manager import ScreenManager
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
 
 
-class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin):
+class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin):
 
     # ──────────────────────────────────────────────
     # 초기화
@@ -58,6 +61,13 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, GroupStudyMi
         self.stop_event = threading.Event()
         self._socket_generation = 0
 
+        # ──── 상태 객체 초기화 ────────────────────────────────────────────────
+        self.camera_state = CameraState()
+        self.personal_study_state = PersonalStudyState()
+        self.group_study_state = GroupStudyState()
+        self.nav_state = NavigationState()
+
+        # ──── 기존 호환성 유지 (점진적 마이그레이션용) ────────────────────────
         # 카메라 상태
         self.camera_running = False
         self.camera_thread = None
@@ -142,17 +152,93 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, GroupStudyMi
 
         self._refresh_period_ms = max(10, self.args.refresh_ms)
 
-        # 슬라이드 빌드
-        self._build_screen_main()
-        self._build_screen_char_legacy()
-        self._build_screen_char_list()
-        self._build_screen_char_create()
-        self._build_screen_group()
-        self._build_screen_group_list()
-        self._build_screen_group_join()
-        self._build_screen_group_create()
-        self._build_screen_char_select()
-        self._build_screen_camera()
+        # Lazy loading: 화면별 1회 빌드 여부
+        self._built_screens = set()
+
+        # ──── ScreenManager 초기화 및 화면 등록 ────
+        self.screen_manager = ScreenManager()
+
+        def _ensure_screen_built(screen_id: int):
+            if screen_id in self._built_screens:
+                return
+
+            if screen_id == MAIN:
+                self._build_screen_main()
+            elif screen_id == GROUP_LIST:
+                self._build_screen_group_list()
+            elif screen_id == GROUP_CREATE:
+                self._build_screen_group_create()
+            elif screen_id == GROUP_JOIN:
+                self._build_screen_group_join()
+            elif screen_id == SELECT_CHAR:
+                self._build_screen_char_select()
+            elif screen_id == GROUP_ROOM:
+                self._build_screen_group()
+            elif screen_id == PERSONAL_CAMERA:
+                self._build_screen_camera()
+            elif screen_id == CHAR_LIST:
+                self._build_screen_char_list()
+            elif screen_id == CREATE_CHAR:
+                self._build_screen_char_create()
+            else:
+                return
+
+            self._built_screens.add(screen_id)
+        
+        # 각 화면별 on_show/on_hide 콜백 정의
+        def _on_show_main():
+            for child in self.screen_main.winfo_children():
+                child.destroy()
+            self._build_screen_main()
+        
+        def _on_show_group_list():
+            _ensure_screen_built(GROUP_LIST)
+            self._refresh_group_list()
+        
+        def _on_show_group_create():
+            _ensure_screen_built(GROUP_CREATE)
+            self.create_name_entry.delete(0, "end")
+            self.create_code_entry.delete(0, "end")
+            self.create_error_label.configure(text="")
+            self.create_submit_btn.configure(state="normal", text="생성하기")
+        
+        def _on_show_group_join():
+            _ensure_screen_built(GROUP_JOIN)
+            self.join_name_entry.delete(0, "end")
+            self.join_code_entry.delete(0, "end")
+            self.join_error_label.configure(text="")
+            self.join_submit_btn.configure(state="normal", text="참가하기")
+        
+        def _on_show_select_char():
+            _ensure_screen_built(SELECT_CHAR)
+            self._screen_char_select_page = 0
+            self._refresh_char_select()
+        
+        def _on_show_group_room():
+            _ensure_screen_built(GROUP_ROOM)
+            self._reload_group_character_overlay()
+        
+        def _on_show_personal_camera():
+            for child in self.screen_camera.winfo_children():
+                child.destroy()
+            self._build_screen_camera()
+        
+        def _on_show_char_list():
+            _ensure_screen_built(CHAR_LIST)
+
+        def _on_show_create_char():
+            self._build_screen_char_create()
+        
+        # 화면 등록
+        self.screen_manager.register(MAIN, self.screen_main, on_show=_on_show_main)
+        self.screen_manager.register(GROUP_LIST, self.screen_group_list, on_show=_on_show_group_list)
+        self.screen_manager.register(GROUP_CREATE, self.screen_group_create, on_show=_on_show_group_create)
+        self.screen_manager.register(GROUP_JOIN, self.screen_group_join, on_show=_on_show_group_join)
+        self.screen_manager.register(SELECT_CHAR, self.screen_char_select, on_show=_on_show_select_char)
+        self.screen_manager.register(GROUP_ROOM, self.screen_group, on_show=_on_show_group_room)
+        self.screen_manager.register(PERSONAL_CAMERA, self.screen_camera, on_show=_on_show_personal_camera)
+        self.screen_manager.register(CHAR_LIST, self.screen_char_list, on_show=_on_show_char_list)
+        self.screen_manager.register(CREATE_CHAR, self.screen_char_create, on_show=_on_show_create_char)
 
         self.show_screen(MAIN)
 
@@ -161,55 +247,11 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, GroupStudyMi
     # ──────────────────────────────────────────────
 
     def show_screen(self, screen_id: int):
-        for widget in self.container.winfo_children():
-            widget.pack_forget()
-
-        if screen_id == MAIN:
-            for child in self.screen_main.winfo_children():
-                child.destroy()
-            self._build_screen_main()
-            self.screen_main.pack(fill="both", expand=True)
-
-        elif screen_id == GROUP_LIST:
-            self._refresh_group_list()
-            self.screen_group_list.pack(fill="both", expand=True)
-
-        elif screen_id == GROUP_CREATE:
-            self.create_name_entry.delete(0, "end")
-            self.create_code_entry.delete(0, "end")
-            self.create_error_label.configure(text="")
-            self.create_submit_btn.configure(state="normal", text="생성하기")
-            self.screen_group_create.pack(fill="both", expand=True)
-
-        elif screen_id == GROUP_JOIN:
-            self.join_name_entry.delete(0, "end")
-            self.join_code_entry.delete(0, "end")
-            self.join_error_label.configure(text="")
-            self.join_submit_btn.configure(state="normal", text="참가하기")
-            self.screen_group_join.pack(fill="both", expand=True)
-
-        elif screen_id == SELECT_CHAR:
-            self._screen_char_select_page = 0
-            self._refresh_char_select()
-            self.screen_char_select.pack(fill="both", expand=True)
-
-        elif screen_id == GROUP_ROOM:
-            self._reload_group_character_overlay()
-            self.screen_group.pack(fill="both", expand=True)
-
-        elif screen_id == PERSONAL_CAMERA:
-            for child in self.screen_camera.winfo_children():
-                child.destroy()
-            self._build_screen_camera()
-            self.screen_camera.pack(fill="both", expand=True)
-
-        elif screen_id == CHAR_LIST:
-            self.screen_char_list.pack(fill="both", expand=True)
-
-        elif screen_id == CREATE_CHAR:
-            self._build_screen_char_create()
-            self.screen_char_create.pack(fill="both", expand=True)
-
+        def _hide_all():
+            for widget in self.container.winfo_children():
+                widget.pack_forget()
+        
+        self.screen_manager.show(self.container, screen_id, _hide_all)
         self.current_screen = screen_id
 
     # ──────────────────────────────────────────────

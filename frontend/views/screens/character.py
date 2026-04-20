@@ -10,7 +10,7 @@ import os
 from PIL import Image
 import customtkinter as ctk
 
-from config import MAIN, GROUP_LIST, SELECT_CHAR, CREATE_CHAR, PERSONAL_CAMERA
+from config import MAIN, SELECT_CHAR, CREATE_CHAR
 from services.character_growth import get_stage_name_from_growth
 from services.character_store import (
     find_character_index,
@@ -509,18 +509,7 @@ class CharScreenMixin:
                 selected_char_id = char.get("id")
 
                 def on_card_click(selected_id=selected_char_id):
-                    # 고유 id를 선택값으로 저장하여 정렬/중복 이름에도 안정적으로 동작
-                    self._selected_char = selected_id
-                    chars = load_characters(sort_by_last_accessed=False)
-                    if touch_character(chars, selected_id):
-                        save_characters(chars)
-                    self.start_camera()
-                    pending = getattr(self, "_pending_group_room", None)
-                    if pending:
-                        self._pending_group_room = None
-                        self._enter_group_room(*pending)
-                    else:
-                        self.show_screen(PERSONAL_CAMERA)
+                    self._enter_selected_character(selected_id)
 
                 card.bind("<Button-1>", lambda e, fn=on_card_click: fn())
 
@@ -583,19 +572,7 @@ class CharScreenMixin:
         else:
             ctk.CTkLabel(content, text="보유한 캐릭터가 없습니다.", font=self._make_font(16)).pack(pady=40)
 
-    def _on_char_select_back(self):
-        if self._pending_group_room is not None:
-            self._pending_group_room = None
-            self.show_screen(GROUP_LIST)
-        else:
-            self.show_screen(MAIN)
-
     def _refresh_char_select(self):
         for widget in self.screen_char_select.winfo_children():
             widget.destroy()
         self._build_screen_char_select()
-
-    def _on_personal_study(self):
-        self._screen_char_select_page = 0
-        self._refresh_char_select()
-        self.show_screen(SELECT_CHAR)
