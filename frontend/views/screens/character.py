@@ -226,17 +226,15 @@ class CharScreenMixin:
         self._screen_char_list_anim_running = False
         for widget in frame.winfo_children():
             widget.destroy()
-
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left")
+        ctk.CTkLabel(top, text="보유 캐릭터 (성장 현황)", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, font=self._make_font(14),
-                  command=lambda: self.show_screen(MAIN), **self._exit_button_style()).pack(side="right", pady=0)
+              command=lambda: self.show_screen(MAIN), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         middle = ctk.CTkFrame(frame, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=10, pady=10)
-
         characters = load_characters(sort_by_last_accessed=True)
 
         page_size = 3
@@ -370,9 +368,9 @@ class CharScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="캐릭터 생성", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left")
-        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, font=self._make_font(14),
-                  command=lambda: self.show_screen(SELECT_CHAR), **self._exit_button_style()).pack(side="right", pady=0)
+        ctk.CTkLabel(top, text="캐릭터 생성", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkButton(top, text="뒤로가기", width=80,height=36, font=self._make_font(14),
+              command=lambda: self.show_screen(SELECT_CHAR), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         middle = ctk.CTkFrame(frame, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=10, pady=10)
@@ -489,15 +487,15 @@ class CharScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="캐릭터 선택", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left")
-        ctk.CTkButton(top, text="뒤로가기", height=36, command=self._on_char_select_back,
-                  font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 6), pady=0)
+        ctk.CTkLabel(top, text="캐릭터 선택", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=self._on_char_select_back,
+              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         def on_create_character():
             self._screen_char_create_page = 0
             self.show_screen(CREATE_CHAR)
         ctk.CTkButton(top, text="캐릭터 생성", height=36, font=self._make_font(14),
-                  command=on_create_character, **self._primary_button_style()).pack(side="right", padx=(0, 6), pady=0)
+              command=on_create_character, **self._primary_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         middle = ctk.CTkFrame(frame, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=10, pady=10)

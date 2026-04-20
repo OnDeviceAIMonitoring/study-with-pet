@@ -44,7 +44,7 @@ class DailyGoalTimeSettingScreenMixin:
             font=self._make_font(20, "bold"),
             text_color=self.theme["text"],
         )
-        title.pack(side="left")
+        title.pack(side="left", padx=16)
 
         back_btn = ctk.CTkButton(
             top_bar, text="<", width=40, height=36,
@@ -52,7 +52,7 @@ class DailyGoalTimeSettingScreenMixin:
             command=self._on_daily_goal_back,
             **self._exit_button_style(),
         )
-        back_btn.pack(side="right", pady=0)
+        back_btn.pack(side="right", padx=(0, 16), pady=0)
 
         # ── 본문 영역 (왼쪽 패널 + 오른쪽 캐릭터) ────────
         body = ctk.CTkFrame(frame, fg_color="transparent")

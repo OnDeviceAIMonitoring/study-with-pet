@@ -29,17 +29,17 @@ class GroupScreenMixin:
             anchor="w",
             font=self._make_font(20, "bold"),
             text_color=self.theme["text"],
-        ).pack(side="left")
-        ctk.CTkButton(top, text="뒤로가기", height=36, command=lambda: self.show_screen(MAIN),
-              font=self._make_font(14), **self._exit_button_style()).pack(side="right", pady=0)
+        ).pack(side="left", padx=16)
+        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(MAIN),
+              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         self.group_list_scroll = ctk.CTkScrollableFrame(
             frame,
             label_text="내 단체방 목록",
             label_font=self._make_font(13),
-            fg_color=self.theme["surface"],
+            fg_color=self.theme["gray"],
             border_width=1,
-            border_color=self.theme["sand"],
+            border_color=self.theme["gray_hover"],
         )
         self.group_list_scroll.pack(fill="both", expand=True, padx=20, pady=(8, 4))
 
@@ -124,9 +124,9 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left")
-        ctk.CTkButton(top, text="뒤로가기", height=36, command=lambda: self.show_screen(GROUP_LIST),
-              font=self._make_font(14), **self._exit_button_style()).pack(side="right", pady=0)
+        ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
+              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         wrap = ctk.CTkFrame(frame, fg_color="transparent")
         wrap.pack(fill="both", expand=True)
@@ -210,9 +210,9 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left")
-        ctk.CTkButton(top, text="뒤로가기", height=36, command=lambda: self.show_screen(GROUP_LIST),
-              font=self._make_font(14), **self._exit_button_style()).pack(side="right", pady=0)
+        ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
+              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         wrap = ctk.CTkFrame(frame, fg_color="transparent")
         wrap.pack(fill="both", expand=True)
@@ -283,4 +283,3 @@ class GroupScreenMixin:
             self._start_group_room_flow(code, name)
 
         self._call_api("/rooms/create", {"name": name, "room_code": code}, on_result)
-

@@ -18,9 +18,9 @@ class GroupStudyMixin:
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
         self.group_screen_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18), text_color=self.theme["text"])
-        self.group_screen_title.pack(side="left")
+        self.group_screen_title.pack(side="left", padx=16)
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_group_back,
-                  font=self._make_font(14), **self._exit_button_style()).pack(side="right", pady=0)
+              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         self.group_img_label = ctk.CTkLabel(frame, text="")
         self.group_img_label.pack(fill="both", expand=True, padx=10, pady=10)

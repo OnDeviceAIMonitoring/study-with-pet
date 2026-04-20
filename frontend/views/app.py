@@ -505,17 +505,17 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
 
         box = tk.Frame(
             dlg,
-            bg=self.theme["surface"],
+            bg=self.theme["white"],
             highlightthickness=1,
             highlightbackground=self.theme["sand"],
         )
         box.pack(fill="both", expand=True)
 
-        title_lbl = tk.Label(box, text=title, fg=self.theme["text"], bg=self.theme["surface"],
+        title_lbl = tk.Label(box, text=title, fg=self.theme["text"], bg=self.theme["white"],
                              font=self._make_font(13, "bold"))
         title_lbl.pack(pady=(18, 6))
 
-        msg_lbl = tk.Label(box, text=message, fg=self.theme["text_muted"], bg=self.theme["surface"],
+        msg_lbl = tk.Label(box, text=message, fg=self.theme["text_muted"], bg=self.theme["white"],
                            font=self._make_font(12), wraplength=280, justify="center")
         msg_lbl.pack(pady=(0, 14), padx=12)
 
