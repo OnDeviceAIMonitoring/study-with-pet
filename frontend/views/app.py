@@ -40,6 +40,7 @@ from .screens import MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraS
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
 from services.character_growth import get_stage_name_from_growth, get_stage_progress
+from services.character_store import find_character_index, load_characters
 from services.study_time import save_study_time
 
 
@@ -180,6 +181,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
             self.screen_group_join.pack(fill="both", expand=True)
 
         elif screen_id == SELECT_CHAR:
+            self._screen_char_select_page = 0
             self._refresh_char_select()
             self.screen_char_select.pack(fill="both", expand=True)
 
@@ -321,7 +323,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
         # 개인방과 동일하게 30초당 1포인트 누적
         updated = self.update_character_growth(self._group_char_idx, add_points)
         if updated:
-            # 단계가 바뀌면 type 폴더가 바뀌므로 오버레이를 다시 로드
+            # 성장도가 변하면 단계(폴더)가 바뀔 수 있으므로 오버레이를 다시 로드
             self._reload_group_character_overlay()
 
     def _reload_group_character_overlay(self):
@@ -344,24 +346,9 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
         if selected_value is None:
             return
 
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                characters = json.load(f)
-        except Exception:
-            return
-
-        selected = None
-        selected_idx = -1
-        if isinstance(selected_value, int):
-            if 0 <= selected_value < len(characters):
-                selected_idx = selected_value
-                selected = characters[selected_idx]
-        elif isinstance(selected_value, str):
-            for i, c in enumerate(characters):
-                if c.get("name") == selected_value:
-                    selected_idx = i
-                    selected = c
-                    break
+        characters = load_characters(sort_by_last_accessed=False)
+        selected_idx = find_character_index(characters, selected_value)
+        selected = characters[selected_idx] if 0 <= selected_idx < len(characters) else None
         if selected is None:
             return
 

@@ -6,13 +6,19 @@
 - screen_char_select : 공부 시작 전 캐릭터 선택 (SELECT_CHAR)
 """
 import os
-import json
 
 from PIL import Image
 import customtkinter as ctk
 
 from config import MAIN, GROUP_LIST, SELECT_CHAR, CREATE_CHAR, PERSONAL_CAMERA
 from services.character_growth import get_stage_name_from_growth
+from services.character_store import (
+    find_character_index,
+    load_characters,
+    new_character,
+    save_characters,
+    touch_character,
+)
 
 
 class CharScreenMixin:
@@ -24,27 +30,24 @@ class CharScreenMixin:
     # 성장도 및 성장 단계 계산/반영 함수
     # ──────────────────────────────────────────────
 
-    def update_character_growth(self, char_idx, add_points):
+    def update_character_growth(self, char_ref, add_points):
         """
-        char_idx: characters.json에서의 인덱스
+        char_ref: characters.json에서의 id 또는 인덱스
         add_points: 추가할 성장 포인트(초 단위로 30초당 1포인트)
         성장도는 누적 포인트로 저장 (0~119: baby, 120~239: adult, 240+: crown)
         단계: baby → adult → crown
         """
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                chars = json.load(f)
-        except Exception:
-            return False
-        if not (0 <= char_idx < len(chars)):
+        chars = load_characters(sort_by_last_accessed=False)
+        char_idx = find_character_index(chars, char_ref)
+        if char_idx < 0:
             return False
         char = chars[char_idx]
         growth = int(char.get("growth", 0))
         growth += add_points
         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
         chars[char_idx] = char
-        with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
-            json.dump(chars, f, ensure_ascii=False, indent=2)
+        touch_character(chars, char_ref)
+        save_characters(chars)
         return True
 
     # ──────────────────────────────────────────────
@@ -71,11 +74,7 @@ class CharScreenMixin:
         middle = ctk.CTkFrame(frame)
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                characters = json.load(f)
-        except Exception:
-            characters = []
+        characters = load_characters(sort_by_last_accessed=True)
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
@@ -109,6 +108,13 @@ class CharScreenMixin:
 
         def on_card_click(idx):
             self._screen_char_legacy_selected = idx
+            selected = visible_characters[idx]
+            selected_id = selected.get("id")
+            if selected_id:
+                self._selected_char = selected_id
+                chars = load_characters(sort_by_last_accessed=False)
+                if touch_character(chars, selected_id):
+                    save_characters(chars)
             for i, c in enumerate(self._screen_char_legacy_cards):
                 if i == idx:
                     c.configure(border_width=4, border_color="#33aaff")
@@ -212,11 +218,7 @@ class CharScreenMixin:
         middle = ctk.CTkFrame(frame)
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                characters = json.load(f)
-        except Exception:
-            characters = []
+        characters = load_characters(sort_by_last_accessed=True)
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
@@ -392,11 +394,7 @@ class CharScreenMixin:
         card_width = 160
 
         def on_card_click(idx):
-            try:
-                with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                    chars = json.load(f)
-            except Exception:
-                chars = []
+            chars = load_characters(sort_by_last_accessed=False)
             sel_cand = visible_candidates[idx]
             # 신규 생성 캐릭터는 growth=0으로 시작하므로 동일 이름+growth=0이면 중복으로 간주
             sel_growth = int(sel_cand.get("growth", 0))
@@ -407,9 +405,8 @@ class CharScreenMixin:
             ):
                 self._show_info_dialog("중복 생성", f"{sel_cand['name']} 캐릭터는\n이미 생성되어 있습니다.")
                 return
-            chars.append({"name": sel_cand["name"], "growth": sel_growth})
-            with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
-                json.dump(chars, f, ensure_ascii=False, indent=2)
+            chars.append(new_character(sel_cand["name"], sel_growth))
+            save_characters(chars)
             self._rebuild_screen_char_legacy()
 
         for col, cand in enumerate(visible_candidates):
@@ -479,11 +476,7 @@ class CharScreenMixin:
         middle = ctk.CTkFrame(frame)
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                characters = json.load(f)
-        except Exception:
-            characters = []
+        characters = load_characters(sort_by_last_accessed=True)
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
@@ -521,11 +514,14 @@ class CharScreenMixin:
                 card.grid_propagate(False)
                 content.grid_rowconfigure(0, weight=1)
 
-                absolute_idx = (self._screen_char_select_page * page_size) + col
+                selected_char_id = char.get("id")
 
-                def on_card_click(selected_idx=absolute_idx):
-                    # 이름이 아닌 고유 인덱스로 선택값 저장하여 동일 이름 캐릭터 충돌 방지
-                    self._selected_char = selected_idx
+                def on_card_click(selected_id=selected_char_id):
+                    # 고유 id를 선택값으로 저장하여 정렬/중복 이름에도 안정적으로 동작
+                    self._selected_char = selected_id
+                    chars = load_characters(sort_by_last_accessed=False)
+                    if touch_character(chars, selected_id):
+                        save_characters(chars)
                     self.start_camera()
                     pending = getattr(self, "_pending_group_room", None)
                     if pending:
@@ -608,4 +604,6 @@ class CharScreenMixin:
         self._build_screen_char_select()
 
     def _on_personal_study(self):
+        self._screen_char_select_page = 0
+        self._refresh_char_select()
         self.show_screen(SELECT_CHAR)

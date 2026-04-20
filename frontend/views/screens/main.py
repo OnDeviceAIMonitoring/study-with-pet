@@ -2,7 +2,6 @@
 메인 화면(screen_main) 빌드 Mixin
 """
 import os
-import json
 import random
 
 from PIL import Image
@@ -10,6 +9,7 @@ import customtkinter as ctk
 
 from config import MAIN, SELECT_CHAR
 from services.character_growth import get_stage_name_from_growth
+from services.character_store import load_characters
 
 
 class MainScreenMixin:
@@ -47,11 +47,7 @@ class MainScreenMixin:
 
         # ── 캐릭터 라벨 먼저 생성 (z-order상 버튼보다 아래로 위치) ──
         self.screen_main_characters = []
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                char_list = json.load(f)
-        except Exception:
-            char_list = []
+        char_list = load_characters(sort_by_last_accessed=True)
 
         valid_areas = [a for a in possible_areas if a[2] >= char_w and a[3] >= char_h]
         candidates = []

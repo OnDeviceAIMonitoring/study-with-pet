@@ -5,7 +5,6 @@
 """
 import os
 import sys
-import json
 import time
 import threading
 
@@ -14,6 +13,7 @@ import customtkinter as ctk
 
 from config import MAIN
 from services.character_growth import get_stage_name_from_growth, get_stage_progress
+from services.character_store import find_character_index, load_characters, save_characters, touch_character
 from services.study_time import save_study_time
 
 # ─────────────────────────────────────────────────────────────
@@ -108,30 +108,21 @@ class CameraScreenMixin:
         self._camera_anim_sets = {}
         self._camera_char_frames = []
         self._camera_char_frame_idx = 0
-        char_name = getattr(self, '_selected_char', None)
+        char_ref = getattr(self, '_selected_char', None)
+        char_name = None
         char_growth = 0
         char_idx = -1
-        # 인덱스일 경우 실제 이름/성장도로 변환
-        if isinstance(char_name, int):
-            try:
-                with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                    characters = json.load(f)
-                char_growth = int(characters[char_name].get("growth", 0))
-                char_idx = char_name
-                char_name = characters[char_name]["name"]
-            except Exception:
-                char_name = None
+        chars = load_characters(sort_by_last_accessed=False)
+        char_idx = find_character_index(chars, char_ref)
+        if 0 <= char_idx < len(chars):
+            char = chars[char_idx]
+            char_growth = int(char.get("growth", 0))
+            char_name = char.get("name")
+            self._camera_char_id = char.get("id")
+            if touch_character(chars, self._camera_char_id or char_ref):
+                save_characters(chars)
         else:
-            try:
-                with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                    characters = json.load(f)
-                for i, c in enumerate(characters):
-                    if c.get("name") == char_name:
-                        char_growth = int(c.get("growth", 0))
-                        char_idx = i
-                        break
-            except Exception:
-                pass
+            self._camera_char_id = None
 
         if not char_name or not isinstance(char_name, str):
             self._camera_char_label.configure(image=None)
@@ -139,6 +130,7 @@ class CameraScreenMixin:
             self._camera_char_growth.set(0.0)
             self._camera_char_growth_label.configure(text="0%")
             self._camera_char_idx = -1
+            self._camera_char_id = None
             return
         self._camera_char_idx = char_idx
         # 성장도에서 단계를 계산해 해당 폴더 이미지를 로드
@@ -232,20 +224,19 @@ class CameraScreenMixin:
         
         # 성장도 저장
         if self._study_accumulated_points > 0 and hasattr(self, '_camera_char_idx'):
-            char_idx = self._camera_char_idx
-            if 0 <= char_idx:
-                try:
-                    with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                        chars = json.load(f)
+            try:
+                chars = load_characters(sort_by_last_accessed=False)
+                char_ref = getattr(self, "_camera_char_id", None)
+                char_idx = find_character_index(chars, char_ref if char_ref else self._camera_char_idx)
+                if 0 <= char_idx < len(chars):
                     char = chars[char_idx]
                     growth = int(char.get("growth", 0))
                     growth += self._study_accumulated_points
                     char["growth"] = growth  # 누적 포인트로 유지
                     chars[char_idx] = char
-                    with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
-                        json.dump(chars, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
+                    save_characters(chars)
+            except Exception:
+                pass
         
         self.stop_camera()
         self._camera_char_anim_running = False
@@ -271,9 +262,12 @@ class CameraScreenMixin:
             # 캐릭터 성장도 업데이트
             if hasattr(self, '_camera_char_idx') and self._camera_char_idx >= 0:
                 try:
-                    with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                        chars = json.load(f)
-                    char = chars[self._camera_char_idx]
+                    chars = load_characters(sort_by_last_accessed=False)
+                    char_ref = getattr(self, "_camera_char_id", None)
+                    char_idx = find_character_index(chars, char_ref if char_ref else self._camera_char_idx)
+                    if char_idx < 0:
+                        return
+                    char = chars[char_idx]
                     growth = int(char.get("growth", 0))
                     old_stage = get_stage_name_from_growth(growth)
                     growth += 1
@@ -282,20 +276,18 @@ class CameraScreenMixin:
                     if new_stage != old_stage:
                         # 성장 단계 변경됨 - 이미지 리로드
                         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
-                        chars[self._camera_char_idx] = char
-                        with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
-                            json.dump(chars, f, ensure_ascii=False, indent=2)
+                        chars[char_idx] = char
+                        save_characters(chars)
                         # 캐릭터 이미지 다시 로드
                         self._load_camera_character_animation()
                     else:
                         # 성장도만 업데이트
                         char["growth"] = growth
-                        chars[self._camera_char_idx] = char
+                        chars[char_idx] = char
                         growth_percent, growth_ratio = get_stage_progress(growth)
                         self._camera_char_growth.set(growth_ratio)
                         self._camera_char_growth_label.configure(text=f"{growth_percent}%")
-                        with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
-                            json.dump(chars, f, ensure_ascii=False, indent=2)
+                        save_characters(chars)
                 except Exception:
                     pass
         

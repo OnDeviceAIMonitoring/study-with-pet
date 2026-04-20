@@ -282,6 +282,8 @@ class GroupScreenMixin:
     def _start_group_room_flow(self, room_code: str, room_name: str):
         """캐릭터 선택 화면을 거쳐 단체방에 입장합니다."""
         self._pending_group_room = (room_code, room_name)
+        self._screen_char_select_page = 0
+        self._refresh_char_select()
         self.show_screen(SELECT_CHAR)
 
     def _enter_group_room(self, room_code: str, room_name: str):

@@ -1,54 +1,93 @@
 [
   {
     "name": "maltese",
-    "growth": 225
+    "growth": 22,
+    "id": "5b1025faa9f145e0b543886670150bd7",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:51:14+00:00"
   },
   {
     "name": "maltese",
-    "growth": 76
+    "growth": 76,
+    "id": "83564b77bdb142e2b94f0e5811f7f720",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "maltese",
-    "growth": 120
+    "growth": 120,
+    "id": "66569b99b6fe48a6a48a9e55a9206554",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "york",
-    "growth": 123
+    "growth": 123,
+    "id": "e09767756d5546b7bb65b41ff446ce3e",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "york",
-    "growth": 20
+    "growth": 20,
+    "id": "59052e2d030a446c9a05e4142c934044",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:54:10+00:00"
   },
   {
     "name": "york",
-    "growth": 120
+    "growth": 120,
+    "id": "9875bbe0c1214f1e863bfb05fd74270d",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "border_collie",
-    "growth": 80
+    "growth": 80,
+    "id": "9fe7fee57d704a36aaaad151e5b0e2f6",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "border_collie",
-    "growth": 20
+    "growth": 20,
+    "id": "8a0db187f2564194800aa36570e2967b",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "border_collie",
-    "growth": 120
+    "growth": 120,
+    "id": "ea9cbc230353430fa7e485647636a453",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "rabbit",
-    "growth": 188
+    "growth": 188,
+    "id": "6a648ea9a91d4b959df01dd194a5d2d0",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "rabbit",
-    "growth": 20
+    "growth": 20,
+    "id": "7ae662a665d54fbfae40475097d58a55",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   },
   {
     "name": "rabbit",
-    "growth": 120
+    "growth": 120,
+    "id": "c28d9543dca6493488caa388060e1ba8",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:53:37+00:00"
   },
   {
     "name": "maltese",
-    "growth": 0
+    "growth": 0,
+    "id": "f004d620f058494399eaf6637ce5d7fb",
+    "created_at": "2026-04-20T00:46:37+00:00",
+    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   }
 ]
