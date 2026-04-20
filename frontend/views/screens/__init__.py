@@ -10,11 +10,17 @@ screens 패키지 - 각 화면(스크린) Mixin 모듈
 from .main import MainScreenMixin
 from .character import CharScreenMixin
 from .group import GroupScreenMixin
+from .group_study import GroupStudyMixin
+from .personal_study import PersonalStudyMixin
+from .study_growth import StudyGrowthMixin
 from .camera import CameraScreenMixin
 
 __all__ = [
     "MainScreenMixin",
     "CharScreenMixin",
     "GroupScreenMixin",
+    "GroupStudyMixin",
+    "PersonalStudyMixin",
+    "StudyGrowthMixin",
     "CameraScreenMixin",
 ]

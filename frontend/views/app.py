@@ -10,7 +10,6 @@ ViewerApp 메인 진입점
 
 from datetime import datetime
 import json
-import time
 import threading
 import urllib.request
 import urllib.error
@@ -29,22 +28,24 @@ except Exception:
         "customtkinter and Pillow are required. Install them: pip install customtkinter pillow"
     )
 
-import os
-import sys
-
 from config import (
     MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN,
     SELECT_CHAR, GROUP_ROOM, PERSONAL_CAMERA, CHAR_LIST, CREATE_CHAR,
 )
-from .screens import MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreenMixin
+from .screens import (
+    MainScreenMixin,
+    CharScreenMixin,
+    GroupScreenMixin,
+    GroupStudyMixin,
+    PersonalStudyMixin,
+    StudyGrowthMixin,
+    CameraScreenMixin,
+)
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
-from services.character_growth import get_stage_name_from_growth, get_stage_progress
-from services.character_store import find_character_index, load_characters
-from services.study_time import save_study_time
 
 
-class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreenMixin):
+class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin):
 
     # ──────────────────────────────────────────────
     # 초기화
@@ -61,6 +62,12 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
         self.camera_running = False
         self.camera_thread = None
         self.latest_frame = None
+        self._camera_anim_sets = {}
+        self._camera_char_frames = []
+        self._camera_char_frame_idx = 0
+        self._camera_char_anim_running = False
+        self._camera_signal_lock = threading.Lock()
+        self._camera_current_signal = None
 
         # 대기 중인 단체방 입장 정보
         self._pending_group_room = None
@@ -73,6 +80,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
         self._group_char_name = ""
         self._group_char_growth_percent = 0
         self._group_char_idx = -1
+        self._group_char_id = None
         self._group_char_anim_running = False
         self._group_char_anim_sets = {}   # {"happy": [...], "tail": [...], "tear": [...]}
         self._group_char_current_anim = "tail"
@@ -286,146 +294,6 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
             if hasattr(self, "group_img_label"):
                 self.group_img_label.image = img_tk
                 self.group_img_label.configure(image=img_tk)
-
-    def _start_group_study_session(self):
-        self._group_study_running = True
-        self._group_study_start_time = time.time()
-        self._group_study_elapsed_seconds = 0
-        self._group_study_accumulated_points = 0
-
-    def _stop_group_study_session(self, save: bool = True):
-        if not self._group_study_running and not save:
-            return
-
-        self._group_study_running = False
-
-        if save:
-            # 분 단위 저장(최소 1분)
-            study_minutes = max(1, self._group_study_elapsed_seconds // 60)
-            user_name = getattr(self.args, "name", "user")
-            save_study_time(user_name, "group", study_minutes)
-
-    def _tick_group_study_growth(self):
-        if not self._group_study_running:
-            return
-
-        self._group_study_elapsed_seconds = int(time.time() - self._group_study_start_time)
-        new_points = self._group_study_elapsed_seconds // 30
-        if new_points <= self._group_study_accumulated_points:
-            return
-
-        add_points = new_points - self._group_study_accumulated_points
-        self._group_study_accumulated_points = new_points
-
-        if getattr(self, "_group_char_idx", -1) < 0:
-            return
-
-        # 개인방과 동일하게 30초당 1포인트 누적
-        updated = self.update_character_growth(self._group_char_idx, add_points)
-        if updated:
-            # 성장도가 변하면 단계(폴더)가 바뀔 수 있으므로 오버레이를 다시 로드
-            self._reload_group_character_overlay()
-
-    def _reload_group_character_overlay(self):
-        """단체방 캐릭터 위젯(개인방과 동일한 UI)에 프레임/성장 정보를 반영합니다."""
-        self._group_char_frames = []
-        self._group_char_frame_idx = 0
-        self._group_char_last_tick = time.monotonic()
-        self._group_char_name = ""
-        self._group_char_growth_percent = 0
-        self._group_char_anim_running = False
-        self._group_char_anim_sets = {}
-        self._group_char_current_anim = "tail"
-
-        if hasattr(self, "_group_char_label"):
-            self._group_char_label.configure(image=None)
-        if hasattr(self, "_group_char_growth"):
-            self._group_char_growth.set(0.0)
-
-        selected_value = getattr(self, "_selected_char", None)
-        if selected_value is None:
-            return
-
-        characters = load_characters(sort_by_last_accessed=False)
-        selected_idx = find_character_index(characters, selected_value)
-        selected = characters[selected_idx] if 0 <= selected_idx < len(characters) else None
-        if selected is None:
-            return
-
-        self._group_char_name = selected.get("name", "")
-        self._group_char_idx = selected_idx
-        growth_points = int(selected.get("growth", 0))
-        self._group_char_growth_percent, growth_ratio = get_stage_progress(growth_points)
-        if hasattr(self, "_group_char_growth"):
-            self._group_char_growth.set(growth_ratio)
-        ctype = get_stage_name_from_growth(growth_points)
-
-        # 개인방 캐릭터 크기와 동일하게 고정
-        target_w = 120
-        target_h = int(120 * 650 / 430)
-
-        # happy / tail / tear 세트 모두 로드 (tear 없으면 sad 대체)
-        for anim_name in ("happy", "tail", "tear"):
-            anim_dir = f"frontend/assets/characters/{self._group_char_name}/{ctype}/{anim_name}"
-            if anim_name == "tear" and not os.path.isdir(anim_dir):
-                anim_dir = f"frontend/assets/characters/{self._group_char_name}/{ctype}/sad"
-            frames = []
-            if os.path.isdir(anim_dir):
-                files = sorted([f for f in os.listdir(anim_dir) if f.endswith(".png")])
-                for fn in files:
-                    try:
-                        pil_img = Image.open(os.path.join(anim_dir, fn)).convert("RGBA")
-                        bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
-                        pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
-                        ox = (target_w - pil_img.width) // 2
-                        oy = (target_h - pil_img.height) // 2
-                        bg.paste(pil_img, (ox, oy), pil_img)
-                        ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
-                        frames.append(ctk_img)
-                    except Exception:
-                        continue
-            self._group_char_anim_sets[anim_name] = frames
-
-        self._group_char_frames = self._group_char_anim_sets.get("tail", [])
-        self._group_char_current_anim = "tail"
-
-        if self._group_char_frames and hasattr(self, "_group_char_label"):
-            self._group_char_label.configure(image=self._group_char_frames[0])
-            self._group_char_anim_running = True
-            self._group_char_anim_tick()
-
-    def _group_char_anim_tick(self):
-        if not self._group_char_anim_running:
-            return
-
-        # 개인방과 동일하게 시그널에 따라 애니메이션 세트 전환
-        from .screens.camera import _SIGNAL_PRIORITY, _SIGNAL_TO_ANIM, _DEFAULT_ANIM
-        sig = getattr(self, "_camera_current_signal", None)
-        target_anim = _DEFAULT_ANIM
-        if sig:
-            for s in _SIGNAL_PRIORITY:
-                if s == sig:
-                    target_anim = _SIGNAL_TO_ANIM.get(s, _DEFAULT_ANIM)
-                    break
-
-        if target_anim != self._group_char_current_anim:
-            new_frames = self._group_char_anim_sets.get(target_anim, [])
-            if new_frames:
-                self._group_char_current_anim = target_anim
-                self._group_char_frames = new_frames
-                self._group_char_frame_idx = 0
-
-        if not self._group_char_frames:
-            self.root.after(500, self._group_char_anim_tick)
-            return
-
-        self._group_char_frame_idx = (self._group_char_frame_idx + 1) % len(self._group_char_frames)
-        try:
-            if hasattr(self, "_group_char_label"):
-                self._group_char_label.configure(image=self._group_char_frames[self._group_char_frame_idx])
-        except Exception:
-            pass
-        self.root.after(350, self._group_char_anim_tick)
 
     # ──────────────────────────────────────────────
     # REST API 호출

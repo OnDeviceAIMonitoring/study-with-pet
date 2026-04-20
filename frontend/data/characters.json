@@ -4,7 +4,7 @@
     "growth": 22,
     "id": "5b1025faa9f145e0b543886670150bd7",
     "created_at": "2026-04-20T00:46:37+00:00",
-    "last_accessed_at": "2026-04-20T00:51:14+00:00"
+    "last_accessed_at": "2026-04-20T01:27:03+00:00"
   },
   {
     "name": "maltese",
@@ -82,12 +82,5 @@
     "id": "c28d9543dca6493488caa388060e1ba8",
     "created_at": "2026-04-20T00:46:37+00:00",
     "last_accessed_at": "2026-04-20T00:53:37+00:00"
-  },
-  {
-    "name": "maltese",
-    "growth": 0,
-    "id": "f004d620f058494399eaf6637ce5d7fb",
-    "created_at": "2026-04-20T00:46:37+00:00",
-    "last_accessed_at": "2026-04-20T00:46:37+00:00"
   }
 ]

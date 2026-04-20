@@ -9,12 +9,12 @@ import time
 import threading
 
 import cv2
-import customtkinter as ctk
 
-from config import MAIN
-from services.character_growth import get_stage_name_from_growth, get_stage_progress
-from services.character_store import find_character_index, load_characters, save_characters, touch_character
-from services.study_time import save_study_time
+from services.camera_signals import (
+    DEFAULT_STYLE,
+    SIGNAL_PRIORITY,
+    SIGNAL_STYLES,
+)
 
 # ─────────────────────────────────────────────────────────────
 #  detectors import (프로젝트 루트에서)
@@ -31,282 +31,12 @@ except ImportError:
     _DETECTORS_AVAILABLE = False
     print("[screen_camera] WARNING: detectors not found, signal detection disabled")
 
-# ─────────────────────────────────────────────────────────────
-#  시그널 → 캐릭터 애니메이션 매핑
-# ─────────────────────────────────────────────────────────────
-_SIGNAL_TO_ANIM = {
-    "HEART":      "happy",   # 하트 제스처 → 기쁨
-    "DROWSINESS": "tear",    # 졸음 → 걱정/눈물
-    "LOW_FOCUS":  "tear",    # 산만 → 걱정/눈물
-}
-_DEFAULT_ANIM = "tail"       # 시그널 없음 → 꼬리 흔들기 (평상시)
-
-# 시그널 우선순위 (앞에 있을수록 우선)
-_SIGNAL_PRIORITY = ["DROWSINESS", "LOW_FOCUS", "HEART"]
-
-# 시그널 종류별 색상 / 라벨 (카메라 영상 위 알림 바용)
-_SIGNAL_STYLES = {
-    "DROWSINESS": {"color": (0, 0, 200),   "label": "DROWSINESS"},
-    "LOW_FOCUS":  {"color": (0, 100, 220), "label": "LOW_FOCUS"},
-    "HEART":      {"color": (180, 0, 180), "label": "BIG HEART!"},
-}
-_DEFAULT_STYLE = {"color": (180, 180, 0), "label": "alarm"}
-
-
 class CameraScreenMixin:
-
-
-    def _build_screen_camera(self):
-        frame = self.screen_camera
-        top = ctk.CTkFrame(frame)
-        top.pack(fill="x", padx=10, pady=8)
-        ctk.CTkLabel(top, text="개인 공부 - 카메라", anchor="w", font=self._make_font(18)).pack(side="left")
-        
-        # 공부 시간 표시
-        self._study_time_label = ctk.CTkLabel(top, text="공부시간: 00:00", font=self._make_font(14))
-        self._study_time_label.pack(side="left", padx=20)
-        
-        ctk.CTkButton(top, text="돌아가기", width=80, command=self._on_camera_back,
-                      font=self._make_font(12)).pack(side="right")
-
-        # 카메라 피드 라벨
-        self.img_label = ctk.CTkLabel(frame, text="")
-        self.img_label.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # 캐릭터 애니메이션 + 성장도 바 영역
-        char_area = ctk.CTkFrame(frame, fg_color="transparent")
-        char_area.place(relx=0.05, rely=0.7, anchor="w")
-
-        self._camera_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
-        self._camera_char_label.pack()
-        self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14, "bold"))
-        self._camera_char_growth = ctk.CTkProgressBar(char_area, width=120)
-        self._camera_char_growth.pack(pady=(2,0))
-        self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10))
-
-        self._camera_char_frames = []
-        self._camera_char_frame_idx = 0
-        self._camera_char_anim_running = False
-        
-        # 공부 시간 측정 변수
-        self._study_start_time = time.time()
-        self._study_elapsed_seconds = 0
-        self._study_accumulated_points = 0
-        self._study_timer_running = True
-        
-        # 시그널 기반 애니메이션 전환용
-        self._camera_anim_sets = {}       # {"happy": [...], "tail": [...], "tear": [...]}
-        self._camera_current_anim = _DEFAULT_ANIM
-        self._camera_signal_lock = threading.Lock()
-        self._camera_current_signal = None  # 현재 감지된 시그널 이름
-
-        self._load_camera_character_animation()
-        self._update_study_timer()
-
-    def _load_camera_character_animation(self):
-        """선택된 캐릭터의 happy/tail/tear 애니메이션을 모두 프리로드, 성장도/이름도 표시"""
-        self._camera_anim_sets = {}
-        self._camera_char_frames = []
-        self._camera_char_frame_idx = 0
-        char_ref = getattr(self, '_selected_char', None)
-        char_name = None
-        char_growth = 0
-        char_idx = -1
-        chars = load_characters(sort_by_last_accessed=False)
-        char_idx = find_character_index(chars, char_ref)
-        if 0 <= char_idx < len(chars):
-            char = chars[char_idx]
-            char_growth = int(char.get("growth", 0))
-            char_name = char.get("name")
-            self._camera_char_id = char.get("id")
-            if touch_character(chars, self._camera_char_id or char_ref):
-                save_characters(chars)
-        else:
-            self._camera_char_id = None
-
-        if not char_name or not isinstance(char_name, str):
-            self._camera_char_label.configure(image=None)
-            self._camera_char_name.configure(text="")
-            self._camera_char_growth.set(0.0)
-            self._camera_char_growth_label.configure(text="0%")
-            self._camera_char_idx = -1
-            self._camera_char_id = None
-            return
-        self._camera_char_idx = char_idx
-        # 성장도에서 단계를 계산해 해당 폴더 이미지를 로드
-        char_type = get_stage_name_from_growth(char_growth)
-        tail_dir = f"frontend/assets/characters/{char_name}/{char_type}/tail"
-        if not os.path.isdir(tail_dir):
-            self._camera_char_label.configure(image=None)
-            self._camera_char_name.configure(text=char_name)
-            growth_percent, growth_ratio = get_stage_progress(char_growth)
-            self._camera_char_growth.set(growth_ratio)
-            self._camera_char_growth_label.configure(text=f"{growth_percent}%")
-            return
-        from PIL import Image
-        for anim_name in ("happy", "tail", "tear"):
-            anim_dir = f"frontend/assets/characters/{char_name}/{char_type}/{anim_name}"
-            frames = []
-            if os.path.isdir(anim_dir):
-                files = sorted([f for f in os.listdir(anim_dir) if f.endswith('.png')])
-                for fn in files:
-                    try:
-                        pil_img = Image.open(os.path.join(anim_dir, fn)).convert("RGBA")
-                        target_w, target_h = 120, int(120 * 650 / 430)
-                        bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
-                        pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
-                        x = (target_w - pil_img.width) // 2
-                        y = (target_h - pil_img.height) // 2
-                        bg.paste(pil_img, (x, y), pil_img)
-                        ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(target_w, target_h))
-                        frames.append(ctk_img)
-                    except Exception:
-                        continue
-            self._camera_anim_sets[anim_name] = frames
-
-        self._camera_char_name.configure(text=char_name)
-        growth_percent, growth_ratio = get_stage_progress(char_growth)
-        self._camera_char_growth.set(growth_ratio)
-        self._camera_char_growth_label.configure(text=f"{growth_percent}%")
-
-        # 기본 tail 애니메이션으로 시작
-        self._camera_current_anim = _DEFAULT_ANIM
-        self._camera_char_frames = self._camera_anim_sets.get(_DEFAULT_ANIM, [])
-        self._camera_char_frame_idx = 0
-        if self._camera_char_frames:
-            self._camera_char_label.configure(image=self._camera_char_frames[0])
-            self._camera_char_anim_running = True
-            self._camera_char_anim_update()
-        else:
-            self._camera_char_label.configure(image=None)
-            self._camera_char_anim_running = False
-
-    def _camera_char_anim_update(self):
-        if not self._camera_char_anim_running:
-            return
-
-        # 시그널에 따라 애니메이션 세트 전환
-        with self._camera_signal_lock:
-            sig = self._camera_current_signal
-
-        target_anim = _DEFAULT_ANIM
-        if sig:
-            # 우선순위 높은 시그널 먼저
-            for s in _SIGNAL_PRIORITY:
-                if s == sig:
-                    target_anim = _SIGNAL_TO_ANIM.get(s, _DEFAULT_ANIM)
-                    break
-
-        # 애니메이션 세트 변경 시 프레임 인덱스 리셋
-        if target_anim != self._camera_current_anim:
-            new_frames = self._camera_anim_sets.get(target_anim, [])
-            if new_frames:
-                self._camera_current_anim = target_anim
-                self._camera_char_frames = new_frames
-                self._camera_char_frame_idx = 0
-
-        if not self._camera_char_frames:
-            self.root.after(500, self._camera_char_anim_update)
-            return
-
-        self._camera_char_frame_idx = (self._camera_char_frame_idx + 1) % len(self._camera_char_frames)
-        self._camera_char_label.configure(image=self._camera_char_frames[self._camera_char_frame_idx])
-        self.root.after(500, self._camera_char_anim_update)
-
-    def _on_camera_back(self):
-        # 공부 시간 측정 종료
-        self._study_timer_running = False
-        
-        # 공부 시간 저장 (분 단위)
-        study_minutes = max(1, self._study_elapsed_seconds // 60)
-        user_name = getattr(self.args, 'name', 'user')
-        save_study_time(user_name, 'personal', study_minutes)
-        
-        # 성장도 저장
-        if self._study_accumulated_points > 0 and hasattr(self, '_camera_char_idx'):
-            try:
-                chars = load_characters(sort_by_last_accessed=False)
-                char_ref = getattr(self, "_camera_char_id", None)
-                char_idx = find_character_index(chars, char_ref if char_ref else self._camera_char_idx)
-                if 0 <= char_idx < len(chars):
-                    char = chars[char_idx]
-                    growth = int(char.get("growth", 0))
-                    growth += self._study_accumulated_points
-                    char["growth"] = growth  # 누적 포인트로 유지
-                    chars[char_idx] = char
-                    save_characters(chars)
-            except Exception:
-                pass
-        
-        self.stop_camera()
-        self._camera_char_anim_running = False
-        self.show_screen(MAIN)
-    
-    def _update_study_timer(self):
-        """30초마다 성장도 1포인트 추가"""
-        if not self._study_timer_running:
-            return
-        
-        self._study_elapsed_seconds = int(time.time() - self._study_start_time)
-        
-        # 공부 시간 표시 업데이트 (분:초)
-        minutes = self._study_elapsed_seconds // 60
-        seconds = self._study_elapsed_seconds % 60
-        self._study_time_label.configure(text=f"공부시간: {minutes:02d}:{seconds:02d}")
-        
-        # 30초마다 1포인트 추가
-        new_points = self._study_elapsed_seconds // 30
-        if new_points > self._study_accumulated_points:
-            self._study_accumulated_points = new_points
-            
-            # 캐릭터 성장도 업데이트
-            if hasattr(self, '_camera_char_idx') and self._camera_char_idx >= 0:
-                try:
-                    chars = load_characters(sort_by_last_accessed=False)
-                    char_ref = getattr(self, "_camera_char_id", None)
-                    char_idx = find_character_index(chars, char_ref if char_ref else self._camera_char_idx)
-                    if char_idx < 0:
-                        return
-                    char = chars[char_idx]
-                    growth = int(char.get("growth", 0))
-                    old_stage = get_stage_name_from_growth(growth)
-                    growth += 1
-                    new_stage = get_stage_name_from_growth(growth)
-
-                    if new_stage != old_stage:
-                        # 성장 단계 변경됨 - 이미지 리로드
-                        char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
-                        chars[char_idx] = char
-                        save_characters(chars)
-                        # 캐릭터 이미지 다시 로드
-                        self._load_camera_character_animation()
-                    else:
-                        # 성장도만 업데이트
-                        char["growth"] = growth
-                        chars[char_idx] = char
-                        growth_percent, growth_ratio = get_stage_progress(growth)
-                        self._camera_char_growth.set(growth_ratio)
-                        self._camera_char_growth_label.configure(text=f"{growth_percent}%")
-                        save_characters(chars)
-                except Exception:
-                    pass
-        
-        # 1초마다 다시 호출
-        self.root.after(1000, self._update_study_timer)
 
     def start_camera(self, camera_index: int = 0):
         if self.camera_running:
             return
         self.camera_running = True
-
-        # 애니메이션 루프 재시작 (슬라이드 재진입 시)
-        if self._camera_anim_sets and not self._camera_char_anim_running:
-            self._camera_char_frames = self._camera_anim_sets.get(_DEFAULT_ANIM, [])
-            self._camera_current_anim = _DEFAULT_ANIM
-            self._camera_char_frame_idx = 0
-            if self._camera_char_frames:
-                self._camera_char_anim_running = True
-                self._camera_char_anim_update()
 
         # ── 파이프라인 병렬 공유 상태 ─────────────────────────
         shared = {
@@ -441,7 +171,7 @@ class CameraScreenMixin:
                 top_signal = None
                 if all_signals:
                     sig_names = set(s.name for s in all_signals)
-                    for prio in _SIGNAL_PRIORITY:
+                    for prio in SIGNAL_PRIORITY:
                         if prio in sig_names:
                             top_signal = prio
                             break
@@ -474,7 +204,7 @@ class CameraScreenMixin:
                     cv2.addWeighted(border_ov, alpha, frame, 1 - alpha, 0, frame)
 
                     # 경고 라벨 (중앙 상단)
-                    label  = _SIGNAL_STYLES.get(top_signal, _DEFAULT_STYLE)["label"]
+                    label  = SIGNAL_STYLES.get(top_signal, DEFAULT_STYLE)["label"]
                     t_scale = 1.1
                     (tw, th), _ = cv2.getTextSize(
                         label, cv2.FONT_HERSHEY_SIMPLEX, t_scale, 3)
