@@ -7,14 +7,20 @@
 
 ```text
 pet/
-├── backend/
-│   └── server.py
-├── frontend/
-│   ├── client_test.py
-│   └── viewer_client.py
-├── requirements.txt
-└── pet.md
+├── backend/          # 서버 (Socket.IO)
+├── config/           # Detector 설정 파일
+├── detectors/        # 졸음/산만함/딴짓/하트 Detector
+├── frontend/         # UI (main.py 실행)
+├── models/           # ONNX 모델 (⚠️ Git 미포함 — models/model.md 참고)
+└── requirements.txt
 ```
+
+## 모델 파일 (ONNX)
+
+Off-Task 감지에 필요한 YOLO 모델은 Git에 포함되지 않습니다.  
+**Google Drive**에서 다운로드 후 `models/` 디렉토리에 저장하세요.
+
+> 📥 [models/model.md](models/model.md) 참고
 
 ## 요구 사항
 
