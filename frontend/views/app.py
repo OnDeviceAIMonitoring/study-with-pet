@@ -29,7 +29,7 @@ except Exception:
     )
 
 from config import (
-    MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN,
+    MAIN, GROUP_LIST, GROUP_CREATE, GROUP_JOIN, DAILY_GOAL,
     SELECT_CHAR, GROUP_ROOM, PERSONAL_CAMERA, CHAR_LIST, CREATE_CHAR,
 )
 from .screens import (
@@ -41,6 +41,7 @@ from .screens import (
     PersonalStudyMixin,
     StudyGrowthMixin,
     CameraScreenMixin,
+    DailyGoalTimeSettingScreenMixin,
 )
 from .states import CameraState, PersonalStudyState, GroupStudyState, NavigationState
 from .screen_manager import ScreenManager
@@ -48,7 +49,7 @@ from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
 
 
-class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin):
+class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin, DailyGoalTimeSettingScreenMixin):
 
     # ──────────────────────────────────────────────
     # 초기화
@@ -143,6 +144,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self.screen_group_join = ctk.CTkFrame(self.container)
         self.screen_group_create = ctk.CTkFrame(self.container)
         self.screen_char_select = ctk.CTkFrame(self.container)
+        self.screen_daily_goal = ctk.CTkFrame(self.container)
         self.screen_camera = ctk.CTkFrame(self.container)
 
         self._screen_char_legacy_page = 0
@@ -170,6 +172,8 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 self._build_screen_group_create()
             elif screen_id == GROUP_JOIN:
                 self._build_screen_group_join()
+            elif screen_id == DAILY_GOAL:
+                self._build_screen_daily_goal()
             elif screen_id == SELECT_CHAR:
                 self._build_screen_char_select()
             elif screen_id == GROUP_ROOM:
@@ -209,6 +213,12 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             self.join_error_label.configure(text="")
             self.join_submit_btn.configure(state="normal", text="참가하기")
         
+        def _on_show_daily_goal():
+            # 매번 새로 빌드 (시간 초기화 + 캐릭터 갱신)
+            for child in self.screen_daily_goal.winfo_children():
+                child.destroy()
+            self._build_screen_daily_goal()
+
         def _on_show_select_char():
             _ensure_screen_built(SELECT_CHAR)
             self._screen_char_select_page = 0
@@ -234,6 +244,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self.screen_manager.register(GROUP_LIST, self.screen_group_list, on_show=_on_show_group_list)
         self.screen_manager.register(GROUP_CREATE, self.screen_group_create, on_show=_on_show_group_create)
         self.screen_manager.register(GROUP_JOIN, self.screen_group_join, on_show=_on_show_group_join)
+        self.screen_manager.register(DAILY_GOAL, self.screen_daily_goal, on_show=_on_show_daily_goal, on_hide=self._on_daily_goal_hide)
         self.screen_manager.register(SELECT_CHAR, self.screen_char_select, on_show=_on_show_select_char)
         self.screen_manager.register(GROUP_ROOM, self.screen_group, on_show=_on_show_group_room)
         self.screen_manager.register(PERSONAL_CAMERA, self.screen_camera, on_show=_on_show_personal_camera)
