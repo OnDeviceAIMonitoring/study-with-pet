@@ -26,6 +26,7 @@ mediapipe==0.10.18
 ml_dtypes==0.5.4
 multidict==6.7.1
 numpy==1.26.4
+onnxruntime==1.24.4
 opencv-contrib-python==4.11.0.86
 opencv-python==4.11.0.86
 opt_einsum==3.4.0

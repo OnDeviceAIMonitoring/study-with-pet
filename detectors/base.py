@@ -34,13 +34,13 @@ class BaseDetector(ABC):
         ...
 
     @abstractmethod
-    def process_frame(self, frame, now: float, rgb=None) -> list[Signal]:
+    def process_frame(self, frame, now: float, shared=None) -> list[Signal]:
         """
         한 프레임을 처리하고, 발생한 Signal 리스트를 반환합니다.
         - frame: BGR numpy 배열 (화면 그리기용)
         - now:   time.time() 타임스탬프
-        - rgb:   BGR→RGB 변환이 미리 된 배열 (None이면 내부에서 변환)
-                 signal_hub.py에서 1번만 변환 후 전달하면 CPU 절약 가능
+        - shared: SharedMediaPipe 인스턴스 (Holistic 추론 결과 공유)
+                  signal_hub.py에서 1번만 추론 후 전달하면 CPU 절약 가능
         반환값이 빈 리스트면 해당 프레임에서 시그널 없음.
         """
         ...

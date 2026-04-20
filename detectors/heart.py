@@ -4,7 +4,6 @@ HeartDetector — heart_recog.py 알고리즘을 클래스로 래핑
 """
 import cv2
 import math
-import mediapipe as mp
 import numpy as np
 
 from .base import BaseDetector, Signal
@@ -30,13 +29,6 @@ class HeartDetector(BaseDetector):
         return "heart"
 
     def __init__(self):
-        self.hands = mp.solutions.hands.Hands(
-            max_num_hands=2,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
-        self._mp_draw = mp.solutions.drawing_utils
-
         # 히스토리 (Jitter 방지)
         self._history: list[bool] = []
 
@@ -86,23 +78,21 @@ class HeartDetector(BaseDetector):
         return sum(self._history) / len(self._history) > _MAJORITY_RATIO
 
     # ── process_frame ───────────────────────────────────
-    def process_frame(self, frame, now: float, rgb=None) -> list[Signal]:
-        # 너무 느리면 추가하기
-        # self._frame_count += 1
-        # # 스킵 프레임: 추론 생략하고 마지막 결과 재사용
-        # if self._frame_count % self._skip_n != 0:
-        #     return self._last_signals
-
+    def process_frame(self, frame, now: float, shared=None) -> list[Signal]:
         signals: list[Signal] = []
-        if rgb is None:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = self.hands.process(rgb)
 
-        self._hand_count = len(result.multi_hand_landmarks) if result.multi_hand_landmarks else 0
-        self._detected   = False
+        # shared에서 양손 랜드마크 수집 (Holistic은 left/right 별도 제공)
+        multi_hand_landmarks = []
+        if shared:
+            if shared.left_hand_landmarks:
+                multi_hand_landmarks.append(shared.left_hand_landmarks)
+            if shared.right_hand_landmarks:
+                multi_hand_landmarks.append(shared.right_hand_landmarks)
 
-        if result.multi_hand_landmarks:
-            if self._is_big_heart(result.multi_hand_landmarks):
+        self._hand_count = len(multi_hand_landmarks)
+
+        if multi_hand_landmarks:
+            if self._is_big_heart(multi_hand_landmarks):
                 self._detected = True
                 signals.append(Signal(
                     name="HEART",
@@ -111,8 +101,11 @@ class HeartDetector(BaseDetector):
                     detail="Big heart gesture detected",
                     timestamp=now,
                 ))
+            else:
+                self._detected = False
+        else:
+            self._detected = False
 
-        self._last_signals = signals
         return signals
 
     # ── HUD ──────────────────────────────────────────────
@@ -126,4 +119,4 @@ class HeartDetector(BaseDetector):
 
     # ── 정리 ──────────────────────────────────────────────
     def release(self):
-        self.hands.close()
+        pass
