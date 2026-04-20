@@ -1,5 +1,6 @@
 """개인 공부 화면/성장/캐릭터 UI 로직 Mixin."""
 
+import os
 import time
 import threading
 
@@ -7,6 +8,7 @@ import customtkinter as ctk
 
 from config import MAIN
 from services.camera_signals import DEFAULT_ANIM
+from services.character_animation import _build_ctk_image
 from services.character_store import save_characters, touch_character
 
 
@@ -52,6 +54,13 @@ class PersonalStudyMixin:
         self.img_label = ctk.CTkLabel(frame, text="")
         self.img_label.pack(fill="both", expand=True, padx=10, pady=10)
 
+        # angry_goblin run_to_us 오버레이 (졸음 감지 시 표시)
+        self._goblin_overlay_label = ctk.CTkLabel(frame, text="", fg_color="transparent")
+        self._goblin_frame_idx = 0
+        self._goblin_visible = False
+        self._goblin_anim_running = False
+        self._load_goblin_frames()
+
         # 캐릭터 애니메이션 + 성장도 바 영역
         char_area = ctk.CTkFrame(frame, fg_color="transparent")
         char_area.place(relx=0.05, rely=0.7, anchor="w")
@@ -80,6 +89,10 @@ class PersonalStudyMixin:
         self._start_personal_study_session()
         self._load_camera_character_animation()
         self._update_study_timer()
+
+        # 고블린 오버레이 애니메이션 시작 (200ms)
+        self._goblin_anim_running = True
+        self._goblin_anim_tick()
 
     # ── 캐릭터 로드 / 애니메이션 ─────────────────────────────
 
@@ -150,6 +163,69 @@ class PersonalStudyMixin:
             self._camera_char_label.configure(image=None)
             self._camera_char_anim_running = False
 
+    def _load_goblin_frames(self):
+        """angry_goblin/run_to_us 애니메이션 커스텀 시퀀스 로드.
+
+        시퀀스: dok1~dok8 순서대로 재생 → dok7,dok8을 3번 더 반복
+        → dok8에서 1초 머무른 뒤 다시 dok1로 루프.
+        """
+        if getattr(self, '_goblin_frames', None):
+            return  # 이미 로드됨
+        self._goblin_frames = []
+        goblin_dir = "frontend/assets/characters/angry_goblin/run_to_us"
+        if not os.path.isdir(goblin_dir):
+            return
+        target_w = 150
+        target_h = int(target_w * 650 / 430)
+        raw_frames = []
+        for i in range(1, 9):  # dok1 ~ dok8
+            path = os.path.join(goblin_dir, f"dok{i}.png")
+            if not os.path.isfile(path):
+                continue
+            try:
+                ctk_img = _build_ctk_image(path, target_w, target_h)
+                raw_frames.append(ctk_img)
+            except Exception:
+                continue
+        if len(raw_frames) < 8:
+            self._goblin_frames = raw_frames
+            return
+        # 1,2,3,4,5,6,7,8,7,8,7,8,7,8  (dok7-dok8 세 번 더 반복)
+        seq = list(range(8))
+        for _ in range(3):
+            seq.extend([6, 7])
+        # dok8에서 1초 머무름 (5×200ms = 1000ms, 앞의 1프레임 포함 → 4개 추가)
+        seq.extend([7] * 4)
+        self._goblin_frames = [raw_frames[i] for i in seq]
+
+    def _goblin_anim_tick(self):
+        """200ms마다 졸음 감지 확인 + 고블린 프레임 전환."""
+        if not getattr(self, '_goblin_anim_running', False):
+            return
+
+        with self._camera_signal_lock:
+            current_signal = self._camera_current_signal
+
+        is_drowsy = current_signal == "DROWSINESS"
+        goblin_frames = getattr(self, '_goblin_frames', [])
+
+        if is_drowsy and goblin_frames:
+            if not self._goblin_visible:
+                self._goblin_overlay_label.place(relx=0.05, rely=0.35, anchor="w")
+                self._goblin_visible = True
+                self._goblin_frame_idx = 0
+            self._goblin_frame_idx = (self._goblin_frame_idx + 1) % len(goblin_frames)
+            try:
+                self._goblin_overlay_label.configure(image=goblin_frames[self._goblin_frame_idx])
+            except Exception:
+                pass
+        else:
+            if self._goblin_visible:
+                self._goblin_overlay_label.place_forget()
+                self._goblin_visible = False
+
+        self.root.after(200, self._goblin_anim_tick)
+
     def _camera_char_anim_update(self):
         if not self._camera_char_anim_running:
             return
@@ -170,6 +246,8 @@ class PersonalStudyMixin:
         self._stop_personal_study_session()
         self.stop_camera()
         self._camera_char_anim_running = False
+        self._goblin_anim_running = False
+        self._goblin_visible = False
         self.show_screen(MAIN)
 
     # ── 성장 틱 / 타이머 ────────────────────────────────────
