@@ -201,7 +201,7 @@ class CharScreenMixin:
                     growth_percent = min(100, int(growth_in_stage * 100 / 120))
                     prog_value = growth_in_stage / 120
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
-                prog = ctk.CTkProgressBar(card, width=140)
+                prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
                 prog.set(prog_value)
                 prog.pack(pady=8)
                 self._screen_char_legacy_cards.append(card)
@@ -329,7 +329,7 @@ class CharScreenMixin:
                 growth_percent = min(100, int(growth_in_stage * 100 / 120))
                 prog_value = growth_in_stage / 120
             ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
-            prog = ctk.CTkProgressBar(card, width=140)
+            prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
             prog.set(prog_value)
             prog.pack(pady=8)
 
@@ -607,7 +607,7 @@ class CharScreenMixin:
                     growth_percent = min(100, int(growth_in_stage * 100 / 120))
                     prog_value = growth_in_stage / 120
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
-                prog = ctk.CTkProgressBar(card, width=140)
+                prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
                 prog.set(prog_value)
                 prog.pack(pady=8)
         else:
