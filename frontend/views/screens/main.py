@@ -9,6 +9,7 @@ from PIL import Image
 import customtkinter as ctk
 
 from config import MAIN, SELECT_CHAR
+from services.character_growth import get_stage_name_from_growth
 
 
 class MainScreenMixin:
@@ -56,7 +57,7 @@ class MainScreenMixin:
         candidates = []
         for char in char_list:
             name = char.get("name", "maltese")
-            ctype = char.get("type", "baby")
+            ctype = get_stage_name_from_growth(char.get("growth", 0))
             happy_dir = f"frontend/assets/characters/{name}/{ctype}/happy"
             if not os.path.isdir(happy_dir):
                 continue

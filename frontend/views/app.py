@@ -39,6 +39,7 @@ from config import (
 from .screens import MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreenMixin
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame
+from services.character_growth import get_stage_name_from_growth, get_stage_progress
 from services.study_time import save_study_time
 
 
@@ -367,11 +368,10 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, CameraScreen
         self._group_char_name = selected.get("name", "")
         self._group_char_idx = selected_idx
         growth_points = int(selected.get("growth", 0))
-        display_growth = growth_points % 120
-        self._group_char_growth_percent = min(100, int(display_growth * 100 / 120))
+        self._group_char_growth_percent, growth_ratio = get_stage_progress(growth_points)
         if hasattr(self, "_group_char_growth"):
-            self._group_char_growth.set(display_growth / 120)
-        ctype = selected.get("type", "baby")
+            self._group_char_growth.set(growth_ratio)
+        ctype = get_stage_name_from_growth(growth_points)
 
         # 개인방 캐릭터 크기와 동일하게 고정
         target_w = 120

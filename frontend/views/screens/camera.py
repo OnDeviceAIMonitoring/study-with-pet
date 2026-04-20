@@ -13,6 +13,7 @@ import cv2
 import customtkinter as ctk
 
 from config import MAIN
+from services.character_growth import get_stage_name_from_growth, get_stage_progress
 from services.study_time import save_study_time
 
 # ─────────────────────────────────────────────────────────────
@@ -140,21 +141,14 @@ class CameraScreenMixin:
             self._camera_char_idx = -1
             return
         self._camera_char_idx = char_idx
-        # type을 찾아서 해당 폴더에서 이미지 로드
-        char_type = "baby"
-        try:
-            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
-                characters = json.load(f)
-                if 0 <= char_idx < len(characters):
-                    char_type = characters[char_idx].get("type", "baby")
-        except Exception:
-            pass
+        # 성장도에서 단계를 계산해 해당 폴더 이미지를 로드
+        char_type = get_stage_name_from_growth(char_growth)
         tail_dir = f"frontend/assets/characters/{char_name}/{char_type}/tail"
         if not os.path.isdir(tail_dir):
             self._camera_char_label.configure(image=None)
             self._camera_char_name.configure(text=char_name)
-            growth_percent = min(100, int(char_growth * 100 / 120))
-            self._camera_char_growth.set(char_growth / 120)
+            growth_percent, growth_ratio = get_stage_progress(char_growth)
+            self._camera_char_growth.set(growth_ratio)
             self._camera_char_growth_label.configure(text=f"{growth_percent}%")
             return
         from PIL import Image
@@ -179,10 +173,8 @@ class CameraScreenMixin:
             self._camera_anim_sets[anim_name] = frames
 
         self._camera_char_name.configure(text=char_name)
-        # UI에 표시할 때만 % 120 사용
-        display_growth = char_growth % 120
-        growth_percent = min(100, int(display_growth * 100 / 120))
-        self._camera_char_growth.set(display_growth / 120)
+        growth_percent, growth_ratio = get_stage_progress(char_growth)
+        self._camera_char_growth.set(growth_ratio)
         self._camera_char_growth_label.configure(text=f"{growth_percent}%")
 
         # 기본 tail 애니메이션으로 시작
@@ -248,12 +240,7 @@ class CameraScreenMixin:
                     char = chars[char_idx]
                     growth = int(char.get("growth", 0))
                     growth += self._study_accumulated_points
-                    stages = ["baby", "adult", "crown"]
-                    stage_idx = stages.index(char.get("type", "baby")) if char.get("type", "baby") in stages else 0
-                    new_stage_idx = min(growth // 120, len(stages) - 1)
                     char["growth"] = growth  # 누적 포인트로 유지
-                    if new_stage_idx != stage_idx:
-                        char["type"] = stages[new_stage_idx]
                     chars[char_idx] = char
                     with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                         json.dump(chars, f, ensure_ascii=False, indent=2)
@@ -288,17 +275,12 @@ class CameraScreenMixin:
                         chars = json.load(f)
                     char = chars[self._camera_char_idx]
                     growth = int(char.get("growth", 0))
+                    old_stage = get_stage_name_from_growth(growth)
                     growth += 1
-                    
-                    # 성장 단계 변경 확인
-                    stages = ["baby", "adult", "crown"]
-                    stage_idx = stages.index(char.get("type", "baby")) if char.get("type", "baby") in stages else 0
-                    new_stage_idx = min(growth // 120, len(stages) - 1)
-                    old_growth_display = growth - 1
-                    
-                    if new_stage_idx != stage_idx:
+                    new_stage = get_stage_name_from_growth(growth)
+
+                    if new_stage != old_stage:
                         # 성장 단계 변경됨 - 이미지 리로드
-                        char["type"] = stages[new_stage_idx]
                         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
                         chars[self._camera_char_idx] = char
                         with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
@@ -309,10 +291,8 @@ class CameraScreenMixin:
                         # 성장도만 업데이트
                         char["growth"] = growth
                         chars[self._camera_char_idx] = char
-                        # UI에 표시할 때만 % 120 사용
-                        display_growth = growth % 120
-                        growth_percent = min(100, int(display_growth * 100 / 120))
-                        self._camera_char_growth.set(display_growth / 120)
+                        growth_percent, growth_ratio = get_stage_progress(growth)
+                        self._camera_char_growth.set(growth_ratio)
                         self._camera_char_growth_label.configure(text=f"{growth_percent}%")
                         with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                             json.dump(chars, f, ensure_ascii=False, indent=2)

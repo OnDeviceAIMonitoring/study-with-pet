@@ -12,6 +12,7 @@ from PIL import Image
 import customtkinter as ctk
 
 from config import MAIN, GROUP_LIST, SELECT_CHAR, CREATE_CHAR, PERSONAL_CAMERA
+from services.character_growth import get_stage_name_from_growth
 
 
 class CharScreenMixin:
@@ -40,14 +41,7 @@ class CharScreenMixin:
         char = chars[char_idx]
         growth = int(char.get("growth", 0))
         growth += add_points
-        # 단계 계산
-        stages = ["baby", "adult", "crown"]
-        stage_idx = stages.index(char.get("type", "baby")) if char.get("type", "baby") in stages else 0
-        # 성장도에 따라 단계 변경
-        new_stage_idx = min(growth // 120, len(stages) - 1)
         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
-        if new_stage_idx != stage_idx:
-            char["type"] = stages[new_stage_idx]
         chars[char_idx] = char
         with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
             json.dump(chars, f, ensure_ascii=False, indent=2)
@@ -142,8 +136,8 @@ class CharScreenMixin:
                 placeholder.pack(pady=10, padx=8, fill="both", expand=True)
                 placeholder.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
                 name = char.get("name", "maltese")
-                ctype = char.get("type", "baby")
-                # 성장 단계(type)가 변경되면 자동으로 해당 폴더의 이미지를 사용
+                ctype = get_stage_name_from_growth(char.get("growth", 0))
+                # 성장도에 따라 계산된 단계 폴더 이미지를 사용
                 tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
                 img_path = None
                 if os.path.isdir(tail_dir):
@@ -178,10 +172,17 @@ class CharScreenMixin:
 
                 ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14)).pack(pady=(6, 2))
                 growth_point = int(char.get('growth', 0))
-                growth_percent = min(100, int(growth_point * 100 / 120))
+                stage_idx = min(growth_point // 120, 2)
+                if stage_idx >= 2:
+                    growth_percent = 100
+                    prog_value = 1.0
+                else:
+                    growth_in_stage = growth_point - (stage_idx * 120)
+                    growth_percent = min(100, int(growth_in_stage * 100 / 120))
+                    prog_value = growth_in_stage / 120
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12)).pack()
                 prog = ctk.CTkProgressBar(card, width=140)
-                prog.set(growth_point / 120)
+                prog.set(prog_value)
                 prog.pack(pady=8)
                 self._screen_char_legacy_cards.append(card)
         else:
@@ -260,8 +261,8 @@ class CharScreenMixin:
                 w.destroy()
 
             name = char.get("name", "maltese")
-            ctype = char.get("type", "baby")
-            # 성장 단계(type)가 변경되면 자동으로 해당 폴더의 이미지를 사용
+            ctype = get_stage_name_from_growth(char.get("growth", 0))
+            # 성장도에 따라 계산된 단계 폴더 이미지를 사용
             tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
             frames = []
             if os.path.isdir(tail_dir):
@@ -291,10 +292,17 @@ class CharScreenMixin:
 
             ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14)).pack(pady=(6, 2))
             growth_point = int(char.get('growth', 0))
-            growth_percent = min(100, int(growth_point * 100 / 120))
+            stage_idx = min(growth_point // 120, 2)
+            if stage_idx >= 2:
+                growth_percent = 100
+                prog_value = 1.0
+            else:
+                growth_in_stage = growth_point - (stage_idx * 120)
+                growth_percent = min(100, int(growth_in_stage * 100 / 120))
+                prog_value = growth_in_stage / 120
             ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12)).pack()
             prog = ctk.CTkProgressBar(card, width=140)
-            prog.set(growth_point / 120)
+            prog.set(prog_value)
             prog.pack(pady=8)
 
         if self._screen_char_list_anim_data:
@@ -390,18 +398,16 @@ class CharScreenMixin:
             except Exception:
                 chars = []
             sel_cand = visible_candidates[idx]
-            # 이름, 타입, 성장도가 모두 같은 캐릭터가 있으면 중복으로 간주
-            sel_type = sel_cand.get("type", "baby")
-            sel_growth = sel_cand.get("growth", 0.0)
+            # 신규 생성 캐릭터는 growth=0으로 시작하므로 동일 이름+growth=0이면 중복으로 간주
+            sel_growth = int(sel_cand.get("growth", 0))
             if any(
                 c.get("name") == sel_cand["name"] and
-                c.get("type") == sel_type and
-                c.get("growth") == sel_growth
+                int(c.get("growth", 0)) == sel_growth
                 for c in chars
             ):
                 self._show_info_dialog("중복 생성", f"{sel_cand['name']} 캐릭터는\n이미 생성되어 있습니다.")
                 return
-            chars.append({"name": sel_cand["name"], "type": sel_type, "growth": sel_growth})
+            chars.append({"name": sel_cand["name"], "growth": sel_growth})
             with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                 json.dump(chars, f, ensure_ascii=False, indent=2)
             self._rebuild_screen_char_legacy()
@@ -541,7 +547,7 @@ class CharScreenMixin:
                 placeholder.bind("<Button-1>", lambda e, fn=on_card_click: fn())
 
                 name = char.get("name", "maltese")
-                ctype = char.get("type", "baby")
+                ctype = get_stage_name_from_growth(char.get("growth", 0))
                 tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
                 img_path = None
                 if os.path.isdir(tail_dir):
@@ -574,10 +580,17 @@ class CharScreenMixin:
 
                 ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14)).pack(pady=(6, 2))
                 growth_point = int(char.get('growth', 0))
-                growth_percent = min(100, int(growth_point * 100 / 120))
+                stage_idx = min(growth_point // 120, 2)
+                if stage_idx >= 2:
+                    growth_percent = 100
+                    prog_value = 1.0
+                else:
+                    growth_in_stage = growth_point - (stage_idx * 120)
+                    growth_percent = min(100, int(growth_in_stage * 100 / 120))
+                    prog_value = growth_in_stage / 120
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12)).pack()
                 prog = ctk.CTkProgressBar(card, width=140)
-                prog.set(growth_point / 120)
+                prog.set(prog_value)
                 prog.pack(pady=8)
         else:
             ctk.CTkLabel(content, text="보유한 캐릭터가 없습니다.", font=self._make_font(16)).pack(pady=40)

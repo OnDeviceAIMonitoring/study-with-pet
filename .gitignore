@@ -21,3 +21,6 @@ htmlcov/
 .ipynb_checkpoints/
 .DS_Store
 Thumbs.db
+
+frontend/data/characters.json
+frontend/data/study_time.json
