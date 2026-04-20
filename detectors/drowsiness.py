@@ -4,7 +4,6 @@ DrowsinessDetector — mediapipe_sleeping.py 알고리즘을 클래스로 래핑
 경로 B: 얼굴 안 보임 → Pose pitch 기반 고개 숙임 지속 판단
 """
 import cv2
-import mediapipe as mp
 import numpy as np
 import time
 
@@ -70,13 +69,6 @@ class DrowsinessDetector(BaseDetector):
         return "drowsiness"
 
     def __init__(self):
-        self.face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
-        self.pose = mp.solutions.pose.Pose(
-            model_complexity=0,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
-
         # 캘리브레이션
         self.calib_ear_buf: list[float]   = []
         self.calib_pitch_buf: list[float] = []
@@ -115,22 +107,21 @@ class DrowsinessDetector(BaseDetector):
         return self.ear_thresh_down + t * (self.ear_thresh_up - self.ear_thresh_down)
 
     # ── process_frame ───────────────────────────────────
-    def process_frame(self, frame, now: float, rgb=None) -> list[Signal]:
+    def process_frame(self, frame, now: float, shared=None) -> list[Signal]:
         signals: list[Signal] = []
         h, w = frame.shape[:2]
-        if rgb is None:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        face_result = self.face_mesh.process(rgb)
-        pose_result = self.pose.process(rgb)
+        # shared MediaPipe 결과 사용
+        face_landmarks = shared.face_landmarks if shared else None
+        pose_landmarks = shared.pose_landmarks if shared else None
 
         # Pose pitch
         self._pose_pitch = None
-        if pose_result.pose_landmarks:
-            self._pose_pitch = _get_pose_pitch(pose_result.pose_landmarks.landmark, h)
+        if pose_landmarks:
+            self._pose_pitch = _get_pose_pitch(pose_landmarks.landmark, h)
 
         # Face Mesh
-        self._face_visible = face_result.multi_face_landmarks is not None
+        self._face_visible = face_landmarks is not None
         self._ear = 0.0
         self._pitch = 0.0
         self._ear_thresh = self.ear_thresh_up
@@ -139,7 +130,7 @@ class DrowsinessDetector(BaseDetector):
         if self._face_visible:
             self.last_face_time = now
             self.no_face_head_down = False
-            lm = face_result.multi_face_landmarks[0].landmark
+            lm = face_landmarks.landmark
 
             self._ear   = (_get_ear(lm, _EYE_LEFT) + _get_ear(lm, _EYE_RIGHT)) / 2.0
             self._pitch = _get_face_pitch(lm, h)
@@ -231,5 +222,4 @@ class DrowsinessDetector(BaseDetector):
 
     # ── 정리 ──────────────────────────────────────────────
     def release(self):
-        self.pose.close()
-        self.face_mesh.close()
+        pass

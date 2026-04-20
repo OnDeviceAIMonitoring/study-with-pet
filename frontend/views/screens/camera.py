@@ -13,7 +13,6 @@ import cv2
 import customtkinter as ctk
 
 from config import MAIN
-from services.character_growth import get_stage_name_from_growth, get_stage_progress
 from services.study_time import save_study_time
 
 # ─────────────────────────────────────────────────────────────
@@ -25,7 +24,7 @@ if _DETECTORS_ROOT not in sys.path:
     sys.path.insert(0, _DETECTORS_ROOT)
 
 try:
-    from detectors import DrowsinessDetector, FidgetDetector, HeartDetector, Signal
+    from detectors import DrowsinessDetector, FidgetDetector, OffTaskDetector, HeartDetector, Signal, SharedMediaPipe
     _DETECTORS_AVAILABLE = True
 except ImportError:
     _DETECTORS_AVAILABLE = False
@@ -38,17 +37,19 @@ _SIGNAL_TO_ANIM = {
     "HEART":      "happy",   # 하트 제스처 → 기쁨
     "DROWSINESS": "tear",    # 졸음 → 걱정/눈물
     "LOW_FOCUS":  "tear",    # 산만 → 걱정/눈물
+    "OFF_TASK":   "tear",    # 딴짓 → 걱정/눈물
 }
 _DEFAULT_ANIM = "tail"       # 시그널 없음 → 꼬리 흔들기 (평상시)
 
 # 시그널 우선순위 (앞에 있을수록 우선)
-_SIGNAL_PRIORITY = ["DROWSINESS", "LOW_FOCUS", "HEART"]
+_SIGNAL_PRIORITY = [ "HEART", "DROWSINESS", "OFF_TASK", "LOW_FOCUS"]
 
 # 시그널 종류별 색상 / 라벨 (카메라 영상 위 알림 바용)
 _SIGNAL_STYLES = {
     "DROWSINESS": {"color": (0, 0, 200),   "label": "DROWSINESS"},
     "LOW_FOCUS":  {"color": (0, 100, 220), "label": "LOW_FOCUS"},
     "HEART":      {"color": (180, 0, 180), "label": "BIG HEART!"},
+    "OFF_TASK":   {"color": (252, 180, 14), "label": "OFF_TASK"},
 }
 _DEFAULT_STYLE = {"color": (180, 180, 0), "label": "alarm"}
 
@@ -141,14 +142,21 @@ class CameraScreenMixin:
             self._camera_char_idx = -1
             return
         self._camera_char_idx = char_idx
-        # 성장도에서 단계를 계산해 해당 폴더 이미지를 로드
-        char_type = get_stage_name_from_growth(char_growth)
+        # type을 찾아서 해당 폴더에서 이미지 로드
+        char_type = "baby"
+        try:
+            with open("frontend/data/characters.json", "r", encoding="utf-8") as f:
+                characters = json.load(f)
+                if 0 <= char_idx < len(characters):
+                    char_type = characters[char_idx].get("type", "baby")
+        except Exception:
+            pass
         tail_dir = f"frontend/assets/characters/{char_name}/{char_type}/tail"
         if not os.path.isdir(tail_dir):
             self._camera_char_label.configure(image=None)
             self._camera_char_name.configure(text=char_name)
-            growth_percent, growth_ratio = get_stage_progress(char_growth)
-            self._camera_char_growth.set(growth_ratio)
+            growth_percent = min(100, int(char_growth * 100 / 120))
+            self._camera_char_growth.set(char_growth / 120)
             self._camera_char_growth_label.configure(text=f"{growth_percent}%")
             return
         from PIL import Image
@@ -173,8 +181,10 @@ class CameraScreenMixin:
             self._camera_anim_sets[anim_name] = frames
 
         self._camera_char_name.configure(text=char_name)
-        growth_percent, growth_ratio = get_stage_progress(char_growth)
-        self._camera_char_growth.set(growth_ratio)
+        # UI에 표시할 때만 % 120 사용
+        display_growth = char_growth % 120
+        growth_percent = min(100, int(display_growth * 100 / 120))
+        self._camera_char_growth.set(display_growth / 120)
         self._camera_char_growth_label.configure(text=f"{growth_percent}%")
 
         # 기본 tail 애니메이션으로 시작
@@ -240,7 +250,12 @@ class CameraScreenMixin:
                     char = chars[char_idx]
                     growth = int(char.get("growth", 0))
                     growth += self._study_accumulated_points
+                    stages = ["baby", "adult", "crown"]
+                    stage_idx = stages.index(char.get("type", "baby")) if char.get("type", "baby") in stages else 0
+                    new_stage_idx = min(growth // 120, len(stages) - 1)
                     char["growth"] = growth  # 누적 포인트로 유지
+                    if new_stage_idx != stage_idx:
+                        char["type"] = stages[new_stage_idx]
                     chars[char_idx] = char
                     with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                         json.dump(chars, f, ensure_ascii=False, indent=2)
@@ -275,12 +290,17 @@ class CameraScreenMixin:
                         chars = json.load(f)
                     char = chars[self._camera_char_idx]
                     growth = int(char.get("growth", 0))
-                    old_stage = get_stage_name_from_growth(growth)
                     growth += 1
-                    new_stage = get_stage_name_from_growth(growth)
-
-                    if new_stage != old_stage:
+                    
+                    # 성장 단계 변경 확인
+                    stages = ["baby", "adult", "crown"]
+                    stage_idx = stages.index(char.get("type", "baby")) if char.get("type", "baby") in stages else 0
+                    new_stage_idx = min(growth // 120, len(stages) - 1)
+                    old_growth_display = growth - 1
+                    
+                    if new_stage_idx != stage_idx:
                         # 성장 단계 변경됨 - 이미지 리로드
+                        char["type"] = stages[new_stage_idx]
                         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
                         chars[self._camera_char_idx] = char
                         with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
@@ -291,8 +311,10 @@ class CameraScreenMixin:
                         # 성장도만 업데이트
                         char["growth"] = growth
                         chars[self._camera_char_idx] = char
-                        growth_percent, growth_ratio = get_stage_progress(growth)
-                        self._camera_char_growth.set(growth_ratio)
+                        # UI에 표시할 때만 % 120 사용
+                        display_growth = growth % 120
+                        growth_percent = min(100, int(display_growth * 100 / 120))
+                        self._camera_char_growth.set(display_growth / 120)
                         self._camera_char_growth_label.configure(text=f"{growth_percent}%")
                         with open("frontend/data/characters.json", "w", encoding="utf-8") as f:
                             json.dump(chars, f, ensure_ascii=False, indent=2)
@@ -316,15 +338,15 @@ class CameraScreenMixin:
                 self._camera_char_anim_running = True
                 self._camera_char_anim_update()
 
-        # ── 파이프라인 병렬 공유 상태 ─────────────────────────
+        # ── 공유 상태 ─────────────────────────────────────
         shared = {
-            "frame": None,         # 최신 BGR 프레임
-            "rgb":   None,         # 최신 RGB 프레임
+            "frame": None,
             "frame_lock": threading.Lock(),
-            "signals": {},         # {detector_name: [Signal, ...]}  각 detector의 최신 결과
-            "signals_lock": threading.Lock(),
-            "hud_frames": {},      # {detector_name: drawn_frame}  각 detector가 HUD 그린 사본 (참고용)
         }
+
+        # ── SharedMediaPipe (Holistic 1회 추론 공유) ─────────
+        shared_mp = SharedMediaPipe() if _DETECTORS_AVAILABLE else None
+        self._shared_mp = shared_mp
 
         # ── 카메라 캡처 스레드 ────────────────────────────────
         def capture_loop():
@@ -340,48 +362,91 @@ class CameraScreenMixin:
                 if not ret:
                     time.sleep(0.03)
                     continue
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 with shared["frame_lock"]:
                     shared["frame"] = frame
-                    shared["rgb"]   = rgb
             try:
                 cap.release()
             except Exception:
                 pass
 
-        # ── detector 워커 스레드 (각 detector 독립 실행) ──────
-        def detector_worker(det):
-            """하나의 detector를 독립 스레드에서 반복 실행"""
-            name = det.name
-            while self.camera_running:
-                with shared["frame_lock"]:
-                    frame = shared["frame"]
-                    rgb   = shared["rgb"]
-                if frame is None:
-                    time.sleep(0.02)
-                    continue
-                try:
-                    now = time.time()
-                    sigs = det.process_frame(frame.copy(), now, rgb.copy())
-                    with shared["signals_lock"]:
-                        shared["signals"][name] = sigs
-                except Exception:
-                    import traceback
-                    traceback.print_exc()
-                # detector마다 자기 속도로 돌림 (sleep 최소화)
-                time.sleep(0.005)
-            try:
-                det.release()
-            except Exception:
-                pass
-
-        # ── 렌더 스레드 (HUD + visual effects + 프레임 전달) ──────
-        def render_loop(detectors_list):
+        # ── 처리 스레드 (순차: shared_mp → detectors → render) ──
+        def process_loop(detectors_list):
             import math
             import random
             import numpy as np
 
             prev_time = time.time()
+
+            # ── 캘리브레이션 페이즈 ──────────────────────────
+            _CALIB_MIN_SEC = 8.0
+            _INTRO_SEC     = 3.0
+            _COUNTDOWN_SEC = 5.0
+            _calib_start   = time.time()
+            _calibrating   = True
+
+            def _all_detectors_calibrated(dets) -> bool:
+                """모든 detector의 내부 캘리브레이션 완료 여부"""
+                for d in dets:
+                    # DrowsinessDetector, FidgetDetector
+                    if hasattr(d, 'calib_done') and not d.calib_done:
+                        return False
+                    # OffTaskDetector
+                    if hasattr(d, 'runtime'):
+                        calib = d.runtime.get("calibration", {})
+                        if calib.get("enabled", True) and not calib.get("done", False):
+                            return False
+                return True
+
+            def _draw_calib_overlay(frm, elapsed: float):
+                h, w = frm.shape[:2]
+                dark = frm.copy()
+                dark[:] = (20, 20, 20)
+                cv2.addWeighted(dark, 0.45, frm, 0.55, 0, frm)
+
+                if elapsed < _INTRO_SEC:
+                    # 1단계: 안내 텍스트 (3초)
+                    msgs = ["Look at the camera for 5 seconds."]
+                    sizes = [0.75]
+                    cols  = [(220, 220, 220)]
+                    ths   = [2]
+                elif elapsed < _CALIB_MIN_SEC:
+                    # 2단계: 카운트다운 (5초)
+                    remaining = _CALIB_MIN_SEC - elapsed
+                    count = int(remaining) + 1
+                    msgs  = ["Calibrating...", f"{count}"]
+                    sizes = [0.7, 2.5]
+                    cols  = [(180, 180, 180), (80, 200, 80)]
+                    ths   = [2, 4]
+                else:
+                    # 3단계: 거의 완료
+                    msgs  = ["Almost ready..."]
+                    sizes = [0.8]
+                    cols  = [(80, 200, 80)]
+                    ths   = [2]
+
+                total_h = 0
+                dims = []
+                for txt, sc, th in zip(msgs, sizes, ths):
+                    (tw, th2), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, sc, th)
+                    dims.append((tw, th2))
+                    total_h += th2 + 20
+                y = (h - total_h) // 2
+                for txt, sc, col, th, (tw, th2) in zip(msgs, sizes, cols, ths, dims):
+                    cv2.putText(frm, txt, ((w - tw) // 2, y + th2),
+                                cv2.FONT_HERSHEY_SIMPLEX, sc, col, th)
+                    y += th2 + 20
+
+                # 진행 바 (3초 이후부터 5초 기준)
+                bar_w = int(w * 0.6)
+                bx = (w - bar_w) // 2
+                by = h - 50
+                if elapsed < _INTRO_SEC:
+                    progress = 0.0
+                else:
+                    progress = min(1.0, (elapsed - _INTRO_SEC) / _COUNTDOWN_SEC)
+                filled = int(bar_w * progress)
+                cv2.rectangle(frm, (bx, by), (bx + bar_w, by + 12), (60, 60, 60), -1)
+                cv2.rectangle(frm, (bx, by), (bx + filled, by + 12), (80, 200, 80), -1)
 
             # warning
             _flash_phase = 0.0       # 사인파 위상 (0 ~ 2π)
@@ -439,16 +504,46 @@ class CameraScreenMixin:
 
                 h_f, w_f = frame.shape[:2]
 
-                # 모든 detector의 최신 signal 수집
-                with shared["signals_lock"]:
-                    all_signals = []
-                    for sigs in shared["signals"].values():
+                # SharedMediaPipe 1회 추론
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                if shared_mp is not None:
+                    shared_mp.process(rgb)
+
+                # ── 캘리브레이션 페이즈 ───────────────────────
+                if _calibrating:
+                    elapsed = now - _calib_start
+                    # detector 실행 → 내부 캘리브레이션 진행 (시그널 무시)
+                    for det in detectors_list:
+                        try:
+                            det.process_frame(frame, now, shared_mp)
+                        except Exception:
+                            pass
+                    _draw_calib_overlay(frame, elapsed)
+                    # 최소 시간 경과 AND 모든 detector 캘리브레이션 완료
+                    if elapsed >= _CALIB_MIN_SEC and _all_detectors_calibrated(detectors_list):
+                        _calibrating = False
+                    with self.lock:
+                        self.latest_frame = frame
+                    continue
+
+                # 모든 detector 순차 실행
+                all_signals = []
+                for det in detectors_list:
+                    try:
+                        sigs = det.process_frame(frame, now, shared_mp)
                         all_signals.extend(sigs)
+                    except Exception:
+                        import traceback
+                        traceback.print_exc()
 
                 # 우선순위 기준 최상위 시그널 결정
                 top_signal = None
                 if all_signals:
                     sig_names = set(s.name for s in all_signals)
+                    # 하트 제스처 중에는 손 움직임이 크므로 fidget 오탐 제외
+                    if "HEART" in sig_names:
+                        all_signals = [s for s in all_signals if s.name != "LOW_FOCUS"]
+                        sig_names.discard("LOW_FOCUS")
                     for prio in _SIGNAL_PRIORITY:
                         if prio in sig_names:
                             top_signal = prio
@@ -464,7 +559,7 @@ class CameraScreenMixin:
                         pass
 
                 # ──  warning effect ─────────
-                is_warning = top_signal in ("DROWSINESS", "LOW_FOCUS")
+                is_warning = top_signal in ("DROWSINESS", "LOW_FOCUS", "OFF_TASK")
                 if is_warning:
                     _flash_phase = (_flash_phase + _FLASH_SPEED * dt) % (2 * math.pi)
                     alpha = _FLASH_MAX_A * (0.5 + 0.5 * math.sin(_flash_phase))
@@ -525,13 +620,12 @@ class CameraScreenMixin:
                     self.latest_frame = frame
                 time.sleep(0.01)
 
-        # ── Thread  ───────────────────────────────────────
+        # ── Thread ────────────────────────────────────────
         # 1) camera capture
         self._capture_thread = threading.Thread(target=capture_loop, daemon=True)
         self._capture_thread.start()
 
-        # 2) detector workers
-        self._detector_threads = []
+        # 2) detectors + render (순차 실행 — SharedMediaPipe thread-safety)
         detectors_list = []
         if _DETECTORS_AVAILABLE:
             try:
@@ -539,20 +633,16 @@ class CameraScreenMixin:
                     DrowsinessDetector(),
                     FidgetDetector(),
                     HeartDetector(),
+                    OffTaskDetector(),
                 ]
-                print(f"[screen_camera] {len(detectors_list)} detectors initialized (parallel)")
+                print(f"[screen_camera] {len(detectors_list)} detectors initialized (sequential)")
             except Exception:
                 import traceback
                 traceback.print_exc()
 
-        for det in detectors_list:
-            t = threading.Thread(target=detector_worker, args=(det,), daemon=True)
-            t.start()
-            self._detector_threads.append(t)
-
-        # 3) render thread
+        self._detector_threads = []
         self._render_thread = threading.Thread(
-            target=render_loop, args=(detectors_list,), daemon=True)
+            target=process_loop, args=(detectors_list,), daemon=True)
         self._render_thread.start()
 
     def stop_camera(self):
@@ -569,6 +659,12 @@ class CameraScreenMixin:
         if hasattr(self, '_capture_thread') and self._capture_thread is not None:
             self._capture_thread.join(timeout=1.0)
             self._capture_thread = None
+        if hasattr(self, '_shared_mp') and self._shared_mp is not None:
+            try:
+                self._shared_mp.release()
+            except Exception:
+                pass
+            self._shared_mp = None
         if self.camera_thread is not None:
             self.camera_thread.join(timeout=1.0)
             self.camera_thread = None
