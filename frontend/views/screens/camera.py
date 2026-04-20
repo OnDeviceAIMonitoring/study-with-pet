@@ -61,6 +61,8 @@ class CameraScreenMixin:
                 if not ret:
                     time.sleep(0.03)
                     continue
+                # 거울처럼 좌우 반전
+                frame = cv2.flip(frame, 1)
                 with shared["frame_lock"]:
                     shared["frame"] = frame
             try:
