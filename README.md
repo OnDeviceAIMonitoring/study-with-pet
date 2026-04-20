@@ -64,83 +64,15 @@ source .venv/bin/activate
 uvicorn backend.server:socket_app --host 0.0.0.0 --port 8000 --reload
 ```
 
-헬스체크:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-### 2) 기본 클라이언트 테스트
+### 2) 클라이언트 실행 (수신 확인)
 
 ```bash
 cd /home/willtek/work/pet
 source .venv/bin/activate
-python frontend/client_test.py \
-  --server http://127.0.0.1:8000 \
-  --room TEST_ROOM \
-  --name app_user \
-  --duration 10
-```
-
-### 3) 영상 송신 테스트
-
-기본 정책:
-
-- `--is-main` 사용 시 기본값 `640x480 @ 15fps`
-- 미사용 시 기본값 `320x240 @ 10fps`
-- `--fps`, `--frame-width`, `--frame-height`를 지정하면 기본값을 덮어씁니다.
-
-```bash
-cd /home/willtek/work/pet
-source .venv/bin/activate
-python frontend/client_test.py \
-  --server http://127.0.0.1:8000 \
-  --room TEST_ROOM \
-  --name cam_user \
-  --send-video \
-  --duration 60 \
-  --is-main \
-  --audio-on
-```
-
-실제 카메라 사용 시:
-
-```bash
-python frontend/client_test.py \
-  --server http://127.0.0.1:8000 \
-  --room TEST_ROOM \
-  --name cam_user \
-  --send-video \
-  --use-camera \
-  --camera-device 0 \
-  --frame-width 640 \
-  --frame-height 480 \
-  --jpeg-quality 70 \
-  --fps 15 \
-  --duration 60
-```
-
-### 4) 뷰어 실행 (수신 확인)
-
-```bash
-cd /home/willtek/work/pet
-source .venv/bin/activate
-python frontend/viewer_client.py \
+python frontend/main.py \
   --server http://127.0.0.1:8000 \
   --room TEST_ROOM \
   --name viewer_user
-```
-
-1024x600 화면에서 좌측 캐릭터 영역을 예약하고 우측에 영상을 배치하려면:
-
-```bash
-python frontend/viewer_client.py \
-  --server http://127.0.0.1:8000 \
-  --room TEST_ROOM \
-  --name viewer_user \
-  --canvas-width 1024 \
-  --canvas-height 600 \
-  --left-reserved-width 300
 ```
 
 ## LAN 테스트 팁
