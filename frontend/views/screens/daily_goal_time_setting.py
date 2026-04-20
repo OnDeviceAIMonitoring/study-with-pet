@@ -27,7 +27,7 @@ class DailyGoalTimeSettingScreenMixin:
     def _build_screen_daily_goal(self):
         """목표 시간 입력 화면 위젯 생성"""
         frame = self.screen_daily_goal
-        frame.configure(fg_color="transparent")
+        frame.configure(fg_color=self.theme["ivory"])
 
         # 상태 초기화
         self._daily_goal_hours = 0
@@ -35,28 +35,31 @@ class DailyGoalTimeSettingScreenMixin:
         self._daily_goal_char_anim_running = False
 
         # ── 상단 타이틀 + 뒤로가기 ───────────────────────
-        top_bar = ctk.CTkFrame(frame, fg_color="transparent")
-        top_bar.pack(fill="x", padx=20, pady=(15, 5))
+        top_bar = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
+        top_bar.pack(fill="x", padx=0, pady=0)
+        top_bar.pack_propagate(False)
 
         title = ctk.CTkLabel(
             top_bar, text="오늘의 목표 시간 입력",
             font=self._make_font(20, "bold"),
+            text_color=self.theme["text"],
         )
         title.pack(side="left")
 
         back_btn = ctk.CTkButton(
-            top_bar, text="<", width=40, height=34,
+            top_bar, text="<", width=40, height=36,
             font=self._make_font(16),
             command=self._on_daily_goal_back,
+            **self._exit_button_style(),
         )
-        back_btn.pack(side="right")
+        back_btn.pack(side="right", pady=0)
 
         # ── 본문 영역 (왼쪽 패널 + 오른쪽 캐릭터) ────────
         body = ctk.CTkFrame(frame, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=20, pady=10)
 
         # 왼쪽 설정 패널
-        left_panel = ctk.CTkFrame(body, corner_radius=12)
+        left_panel = ctk.CTkFrame(body, **self._surface_style())
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
         # 안내 문구
@@ -64,6 +67,7 @@ class DailyGoalTimeSettingScreenMixin:
             left_panel,
             text="오늘의 공부 목표 시간을 설정해 주세요.",
             font=self._make_font(16),
+            text_color=self.theme["text"],
         )
         guide_label.pack(pady=(30, 5))
 
@@ -74,7 +78,7 @@ class DailyGoalTimeSettingScreenMixin:
         self._daily_goal_streak_label = ctk.CTkLabel(
             left_panel, text=streak_text,
             font=self._make_font(14),
-            text_color="gray",
+            text_color=self.theme["text_muted"],
         )
         self._daily_goal_streak_label.pack(pady=(0, 20))
 
@@ -90,11 +94,14 @@ class DailyGoalTimeSettingScreenMixin:
             hour_col, text="▲", width=60, height=40,
             font=self._make_font(22),
             command=lambda: self._on_daily_goal_adjust("hour", 1),
+            fg_color=self.theme["gray"],
+            hover_color=self.theme["gray_hover"],
+            text_color=self.theme["text"],
         )
         hour_up.pack()
 
         self._daily_goal_hour_label = ctk.CTkLabel(
-            hour_col, text="0", font=self._make_font(36, "bold"),
+            hour_col, text="0", font=self._make_font(36, "bold"), text_color=self.theme["text"],
         )
         self._daily_goal_hour_label.pack(pady=10)
 
@@ -102,12 +109,15 @@ class DailyGoalTimeSettingScreenMixin:
             hour_col, text="▼", width=60, height=40,
             font=self._make_font(22),
             command=lambda: self._on_daily_goal_adjust("hour", -1),
+            fg_color=self.theme["gray"],
+            hover_color=self.theme["gray_hover"],
+            text_color=self.theme["text"],
         )
         hour_down.pack()
 
         # "시간" 라벨
         hour_unit = ctk.CTkLabel(
-            hour_col, text="시간", font=self._make_font(14),
+            hour_col, text="시간", font=self._make_font(14), text_color=self.theme["text_muted"],
         )
         hour_unit.pack(pady=(5, 0))
 
@@ -119,11 +129,14 @@ class DailyGoalTimeSettingScreenMixin:
             min_col, text="▲", width=60, height=40,
             font=self._make_font(22),
             command=lambda: self._on_daily_goal_adjust("min", 10),
+            fg_color=self.theme["gray"],
+            hover_color=self.theme["gray_hover"],
+            text_color=self.theme["text"],
         )
         min_up.pack()
 
         self._daily_goal_min_label = ctk.CTkLabel(
-            min_col, text="0", font=self._make_font(36, "bold"),
+            min_col, text="0", font=self._make_font(36, "bold"), text_color=self.theme["text"],
         )
         self._daily_goal_min_label.pack(pady=10)
 
@@ -131,12 +144,15 @@ class DailyGoalTimeSettingScreenMixin:
             min_col, text="▼", width=60, height=40,
             font=self._make_font(22),
             command=lambda: self._on_daily_goal_adjust("min", -10),
+            fg_color=self.theme["gray"],
+            hover_color=self.theme["gray_hover"],
+            text_color=self.theme["text"],
         )
         min_down.pack()
 
         # "분" 라벨
         min_unit = ctk.CTkLabel(
-            min_col, text="분", font=self._make_font(14),
+            min_col, text="분", font=self._make_font(14), text_color=self.theme["text_muted"],
         )
         min_unit.pack(pady=(5, 0))
 
@@ -145,17 +161,18 @@ class DailyGoalTimeSettingScreenMixin:
             left_panel, text="공부 시작!", width=200, height=44,
             font=self._make_font(16, "bold"),
             command=self._on_daily_goal_confirm,
+            **self._accent_button_style(),
         )
         confirm_btn.pack(pady=(25, 30))
 
         # ── 오른쪽 캐릭터 애니메이션 영역 ────────────────
-        right_panel = ctk.CTkFrame(body, corner_radius=12, width=220)
+        right_panel = ctk.CTkFrame(body, width=220, **self._surface_style())
         right_panel.pack(side="right", fill="y", padx=(10, 0))
         right_panel.pack_propagate(False)
 
         self._daily_goal_char_label = ctk.CTkLabel(
             right_panel, text="캐릭터 애니메이션",
-            font=self._make_font(14), text_color="gray",
+            font=self._make_font(14), text_color=self.theme["text_muted"],
         )
         self._daily_goal_char_label.pack(expand=True)
 

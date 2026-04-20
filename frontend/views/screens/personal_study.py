@@ -37,16 +37,18 @@ class PersonalStudyMixin:
 
     def _build_screen_camera(self):
         frame = self.screen_camera
-        top = ctk.CTkFrame(frame)
-        top.pack(fill="x", padx=10, pady=8)
-        ctk.CTkLabel(top, text="개인 공부 - 카메라", anchor="w", font=self._make_font(18)).pack(side="left")
+        # 상단바: 테두리/둥근 모서리/여백 없이 사각형, 배경색도 전체 배경과 동일하게
+        top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
+        top.pack(fill="x", padx=0, pady=0)
+        top.pack_propagate(False)
+        ctk.CTkLabel(top, text="개인 공부 - 카메라", anchor="w", font=self._make_font(18), text_color=self.theme["text"]).pack(side="left")
 
         # 공부 시간 표시
-        self._study_time_label = ctk.CTkLabel(top, text="공부시간: 00:00", font=self._make_font(14))
+        self._study_time_label = ctk.CTkLabel(top, text="공부시간: 00:00", font=self._make_font(14), text_color=self.theme["text_muted"])
         self._study_time_label.pack(side="left", padx=20)
 
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_camera_back,
-                      font=self._make_font(14)).pack(side="right")
+                  font=self._make_font(14), **self._exit_button_style()).pack(side="right", pady=0)
 
         # 카메라 피드 라벨
         self.img_label = ctk.CTkLabel(frame, text="")
@@ -58,10 +60,10 @@ class PersonalStudyMixin:
 
         self._camera_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
         self._camera_char_label.pack()
-        self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14, "bold"))
+        self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14, "bold"), text_color=self.theme["text"])
         self._camera_char_growth = ctk.CTkProgressBar(char_area, width=120)
         self._camera_char_growth.pack(pady=(2, 0))
-        self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10))
+        self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10), text_color=self.theme["text_muted"])
 
         self._camera_char_frames = []
         self._camera_char_frame_idx = 0
