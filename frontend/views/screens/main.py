@@ -7,15 +7,24 @@ import random
 from PIL import Image
 import customtkinter as ctk
 
-from config import MAIN, SELECT_CHAR
+from config import MAIN, SELECT_CHAR, DAILY_GOAL
 from services.character_growth import get_stage_name_from_growth
 from services.character_store import load_characters
+from services.study_time import load_daily_goal
 
 
 class MainScreenMixin:
 
     def _on_personal_study(self):
-        # 캐릭터 선택 화면으로 이동
+        # 오늘 목표 시간 미설정이면 목표 입력 화면으로 이동
+        if load_daily_goal(self.args.name) is None:
+            self._daily_goal_next_action = self._on_personal_study_continue
+            self.show_screen(DAILY_GOAL)
+            return
+        self._on_personal_study_continue()
+
+    def _on_personal_study_continue(self):
+        """목표 설정 완료 후 캐릭터 선택 화면으로 이동"""
         self.show_screen(SELECT_CHAR)
 
     def _build_screen_main(self):
