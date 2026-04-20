@@ -24,11 +24,10 @@ class StudyFlowMixin:
         with self.lock:
             self.frame_map.clear()
 
+        self.show_screen(GROUP_ROOM)
         self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
         self._start_group_study_session()
         socketio_client.start_background(self, self._socket_generation)
-
-        self.show_screen(GROUP_ROOM)
         self.start_camera()
 
     def _on_group_back(self):

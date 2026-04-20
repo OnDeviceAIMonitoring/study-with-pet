@@ -270,17 +270,15 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
     # ──────────────────────────────────────────────
 
     def _schedule_update(self):
-        if hasattr(self, "img_label"):
-            self._update_image()
+        self._update_image()
         self.root.after(self._refresh_period_ms, self._schedule_update)
 
     def _update_image(self):
-        if not hasattr(self, "img_label"):
-            return
-
         screen = getattr(self, "current_screen", MAIN)
 
         if screen == PERSONAL_CAMERA:
+            if not hasattr(self, "img_label"):
+                return
             with self.lock:
                 frame = None if self.latest_frame is None else self.latest_frame.copy()
             if frame is None:
@@ -297,6 +295,8 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             self.img_label.configure(image=img_tk)
 
         elif screen == GROUP_ROOM:
+            if not hasattr(self, "group_img_label"):
+                return
             self._tick_group_study_growth()
 
             with self.lock:
@@ -333,9 +333,8 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 rgb = canvas[:, :, ::-1]
             pil = Image.fromarray(rgb)
             img_tk = ImageTk.PhotoImage(pil)
-            if hasattr(self, "group_img_label"):
-                self.group_img_label.image = img_tk
-                self.group_img_label.configure(image=img_tk)
+            self.group_img_label.image = img_tk
+            self.group_img_label.configure(image=img_tk)
 
     # ──────────────────────────────────────────────
     # REST API 호출
