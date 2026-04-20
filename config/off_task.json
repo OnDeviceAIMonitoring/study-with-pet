@@ -54,9 +54,9 @@
     "yaw_max_degrees": 30.0,
     "yaw_out_seconds": 0.6,
     "phone_window_seconds": 5.0,
-    "phone_hit_threshold": 5,
+    "phone_alert_ratio": 0.3,
     "yaw_window_seconds": 5.0,
-    "yaw_hit_threshold": 5
+    "yaw_alert_ratio": 0.3
   },
   "tracking": {
     "max_face_speed_screen_per_second": 2.5,

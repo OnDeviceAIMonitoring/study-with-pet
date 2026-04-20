@@ -18,6 +18,7 @@ _BURST_THRESH      = 5.0
 _BURST_MIN_SEC     = 0.8
 _BURST_GAP_SEC     = 1.5
 _LONG_WINDOW_SEC   = 30.0
+_RESET_GAP_SEC = 15.0
 _BURST_COUNT_THRESH = 4
 _SMOOTH_SEC        = 0.8
 
@@ -107,6 +108,11 @@ class FidgetDetector(BaseDetector):
                     self.burst_times.append(now)
                     self.burst_cooldown = now + _BURST_GAP_SEC
                 self.burst_active = False
+
+        if self.burst_times:
+            last_burst_time = self.burst_times[-1]
+            if (now - last_burst_time) > _RESET_GAP_SEC:
+                self.burst_times.clear()
 
         while self.burst_times and (now - self.burst_times[0]) > _LONG_WINDOW_SEC:
             self.burst_times.popleft()

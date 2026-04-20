@@ -15,21 +15,24 @@ def draw_off_task_bar(frame, status, runtime):
     _put = lambda text, pos, color, scale=0.5, thick=1: cv2.putText(
         frame, text, pos, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick)
 
-    # ── 핸드폰 감지 바 ──────────────────────────────────
-    phone_hit = status.get("phone_hit_count", 0)
-    phone_thresh = status.get("phone_hit_threshold", 3)
+    _BAR_X, _BAR_W = 10, 200   # 바 시작 x, 너비
+    _BAR_MID = _BAR_X + _BAR_W // 2  # 중앙 임계선 위치
+
+    # ── 핸드폰 감지 바 (초 기반 표시) ──────────────
+    phone_ratio = status.get("phone_ratio", 0.0)
+    phone_alert_ratio = status.get("phone_alert_ratio", 0.3)
+    phone_window = status.get("phone_window_sec", 5.0)
     phone_alert = status.get("phone_alert", False)
-    phone_ratio = min(phone_hit / max(phone_thresh, 1), 1.5)
-    phone_bar_w = int(min(phone_ratio / 1.5, 1.0) * 200)
+    phone_sec = phone_ratio * phone_window
+    phone_thresh_sec = phone_alert_ratio * phone_window
+    phone_bar_scale = phone_alert_ratio * 2.0          # alert_ratio → 중앙
+    phone_bar_w = int(min(phone_ratio / max(phone_bar_scale, 1e-6), 1.0) * _BAR_W)
     phone_color = (0, 255, 0) if not phone_alert else (0, 0, 255)
-    cv2.rectangle(frame, (10, y0), (10 + phone_bar_w, y0 + 12), phone_color, -1)
-    cv2.rectangle(frame, (10, y0), (210, y0 + 12), (150, 150, 150), 1)
-    # 임계선
-    tx_phone = int((1.0 / 1.5) * 200) + 10
-    cv2.line(frame, (tx_phone, y0 - 2), (tx_phone, y0 + 14), (0, 0, 255), 2)
-    _put(f"Phone:{phone_hit}/{phone_thresh} "
-         f"({status.get('phone_window_sec', 5.0):.0f}s)",
-         (10, y0 + 26), (200, 200, 200), 0.42)
+    cv2.rectangle(frame, (_BAR_X, y0), (_BAR_X + phone_bar_w, y0 + 12), phone_color, -1)
+    cv2.rectangle(frame, (_BAR_X, y0), (_BAR_X + _BAR_W + 10, y0 + 12), (150, 150, 150), 1)
+    cv2.line(frame, (_BAR_MID, y0 - 2), (_BAR_MID, y0 + 14), (0, 0, 255), 2)
+    _put(f"Phone:{phone_sec:.1f}/{phone_thresh_sec:.1f}s",
+         (_BAR_X, y0 + 26), (200, 200, 200), 0.42)
 
     # ── 고개 방향(Yaw) 감지 바 / 캘리브레이션 진행 바 ────
     y1 = y0 + 34
@@ -47,21 +50,22 @@ def draw_off_task_bar(frame, status, runtime):
         _put(f"Calibrating... {calib_elapsed:.1f}/{calib_duration:.0f}s",
              (10, y1 + 26), (255, 220, 100), 0.42)
     else:
-        # 캘리브레이션 완료 또는 비활성 — 기존 Yaw 바
-        yaw_hit = status.get("yaw_hit_count", 0)
-        yaw_thresh = status.get("yaw_hit_threshold", 3)
+        # 캘리브레이션 완료 또는 비활성 — Yaw 바 (초 기반 표시)
+        yaw_ratio = status.get("yaw_ratio", 0.0)
+        yaw_alert_ratio = status.get("yaw_alert_ratio", 0.3)
+        yaw_window = status.get("yaw_window_sec", 5.0)
         yaw_alert = status.get("yaw_alert", False)
-        yaw_ratio = min(yaw_hit / max(yaw_thresh, 1), 1.5)
-        yaw_bar_w = int(min(yaw_ratio / 1.5, 1.0) * 200)
+        yaw_sec = yaw_ratio * yaw_window
+        yaw_thresh_sec = yaw_alert_ratio * yaw_window
+        yaw_bar_scale = yaw_alert_ratio * 2.0          # alert_ratio → 중앙
+        yaw_bar_w = int(min(yaw_ratio / max(yaw_bar_scale, 1e-6), 1.0) * _BAR_W)
         yaw_color = (0, 255, 0) if not yaw_alert else (0, 0, 255)
-        cv2.rectangle(frame, (10, y1), (10 + yaw_bar_w, y1 + 12),
+        cv2.rectangle(frame, (_BAR_X, y1), (_BAR_X + yaw_bar_w, y1 + 12),
                       yaw_color, -1)
-        cv2.rectangle(frame, (10, y1), (210, y1 + 12), (150, 150, 150), 1)
-        tx_yaw = int((1.0 / 1.5) * 200) + 10
-        cv2.line(frame, (tx_yaw, y1 - 2), (tx_yaw, y1 + 14), (0, 0, 255), 2)
-        _put(f"Yaw:{yaw_hit}/{yaw_thresh} "
-             f"({status.get('yaw_window_sec', 5.0):.0f}s)",
-             (10, y1 + 26), (200, 200, 200), 0.42)
+        cv2.rectangle(frame, (_BAR_X, y1), (_BAR_X + _BAR_W + 10, y1 + 12), (150, 150, 150), 1)
+        cv2.line(frame, (_BAR_MID, y1 - 2), (_BAR_MID, y1 + 14), (0, 0, 255), 2)
+        _put(f"Yaw:{yaw_sec:.1f}/{yaw_thresh_sec:.1f}s",
+             (_BAR_X, y1 + 26), (200, 200, 200), 0.42)
 
     # # ── 최종 상태 --> Signal로 따로 보내주는 것으로 대체 ──────────────────────
     # y2 = y1 + 34
@@ -96,9 +100,13 @@ def draw_off_task_ui(frame, status, cfg, viz_cfg):
                     cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick)
         ty += dy
 
-    _put(f"Phone: {status['phone_alert']} ({status['phone_hit_count']}/{status['phone_hit_threshold']})",
+    phone_sec = status['phone_ratio'] * status.get('phone_window_sec', 5.0)
+    phone_th = status['phone_alert_ratio'] * status.get('phone_window_sec', 5.0)
+    _put(f"Phone: {status['phone_alert']} ({phone_sec:.1f}/{phone_th:.1f}s)",
          alert if status["phone_alert"] else ok, 0.5, 2)
-    _put(f"Head: {'Out' if status['yaw_alert'] else 'OK'} ({status['yaw_hit_count']}/{status['yaw_hit_threshold']})",
+    yaw_sec = status['yaw_ratio'] * status.get('yaw_window_sec', 5.0)
+    yaw_th = status['yaw_alert_ratio'] * status.get('yaw_window_sec', 5.0)
+    _put(f"Head: {'Out' if status['yaw_alert'] else 'OK'} ({yaw_sec:.1f}/{yaw_th:.1f}s)",
          alert if status["yaw_alert"] else ok, 0.5, 2)
     _put(f"Hands: {'No' if status['status_no_hands'] else 'Yes'}",
          alert if status["status_no_hands"] else ok, 0.5, 2)

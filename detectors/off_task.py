@@ -594,8 +594,10 @@ class OffTaskDetector(BaseDetector):
             "phone_boxes": phone_boxes,
             "phone_alert": False,
             "phone_hit_count": 0,
-            "phone_hit_threshold": int(
-                thresholds.get("phone_hit_threshold", 3)),
+            "phone_total_count": 0,
+            "phone_ratio": 0.0,
+            "phone_alert_ratio": float(
+                thresholds.get("phone_alert_ratio", 0.3)),
             "phone_window_sec": float(
                 thresholds.get("phone_window_seconds", 5.0)),
             "status_no_hands": False,
@@ -605,8 +607,10 @@ class OffTaskDetector(BaseDetector):
             "status_yaw_out": False,
             "yaw_alert": False,
             "yaw_hit_count": 0,
-            "yaw_hit_threshold": int(
-                thresholds.get("yaw_hit_threshold", 3)),
+            "yaw_total_count": 0,
+            "yaw_ratio": 0.0,
+            "yaw_alert_ratio": float(
+                thresholds.get("yaw_alert_ratio", 0.3)),
             "yaw_window_sec": float(
                 thresholds.get("yaw_window_seconds", 5.0)),
             "has_hand_visible": False,
@@ -627,9 +631,9 @@ class OffTaskDetector(BaseDetector):
             "yaw_from_calib": None,
         }
 
-        # ── 핸드폰 감지 슬라이딩 윈도우 ──────────────────
+        # ── 핸드폰 감지 슬라이딩 윈도우 (비율 기반) ────
         phone_window_sec = status["phone_window_sec"]
-        phone_hit_thresh = status["phone_hit_threshold"]
+        phone_alert_ratio = status["phone_alert_ratio"]
         now_ts = time.perf_counter()
         self.runtime["phone_events"].append(
             (now_ts, 1 if phone_detected else 0))
@@ -637,10 +641,14 @@ class OffTaskDetector(BaseDetector):
         while (self.runtime["phone_events"]
                and self.runtime["phone_events"][0][0] < cutoff_phone):
             self.runtime["phone_events"].popleft()
+        phone_total = len(self.runtime["phone_events"])
         phone_hit_count = int(
             sum(v for _, v in self.runtime["phone_events"]))
+        phone_ratio = phone_hit_count / max(phone_total, 1)
         status["phone_hit_count"] = phone_hit_count
-        status["phone_alert"] = phone_hit_count >= phone_hit_thresh
+        status["phone_total_count"] = phone_total
+        status["phone_ratio"] = phone_ratio
+        status["phone_alert"] = phone_ratio >= phone_alert_ratio
 
         # ── 트래커 업데이트 ───────────────────────────────
         measurement = _extract_face_measurement(
@@ -724,7 +732,7 @@ class OffTaskDetector(BaseDetector):
 
         yaw_max_deg = float(thresholds.get("yaw_max_degrees", 30.0))
         yaw_window_sec = status["yaw_window_sec"]
-        yaw_hit_thresh = status["yaw_hit_threshold"]
+        yaw_alert_ratio = status["yaw_alert_ratio"]
         yaw_deg = status["yaw_from_calib"]
         yaw_is_out = (yaw_deg is not None
                       and abs(yaw_deg * 90.0) > yaw_max_deg)
@@ -734,10 +742,14 @@ class OffTaskDetector(BaseDetector):
         while (self.runtime["yaw_events"]
                and self.runtime["yaw_events"][0][0] < cutoff_yaw):
             self.runtime["yaw_events"].popleft()
+        yaw_total = len(self.runtime["yaw_events"])
         yaw_hit_count = int(
             sum(v for _, v in self.runtime["yaw_events"]))
+        yaw_ratio = yaw_hit_count / max(yaw_total, 1)
         status["yaw_hit_count"] = yaw_hit_count
-        status["yaw_alert"] = yaw_hit_count >= yaw_hit_thresh
+        status["yaw_total_count"] = yaw_total
+        status["yaw_ratio"] = yaw_ratio
+        status["yaw_alert"] = yaw_ratio >= yaw_alert_ratio
         status["status_yaw_out"] = status["yaw_alert"]
 
         # ── 손 가시성 ─────────────────────────────────────
