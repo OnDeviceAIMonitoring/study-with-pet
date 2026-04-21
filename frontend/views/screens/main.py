@@ -164,3 +164,6 @@ class MainScreenMixin:
             if c["label"] is not None:
                 c["label"].configure(image=c["frames"][c["frame_idx"]])
         self.root.after(200, self.screen_main_anim_update)
+        is_fs = bool(self.root.attributes("-fullscreen"))
+        if not is_fs:
+            self.root.attributes("-fullscreen", True)

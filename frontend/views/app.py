@@ -124,6 +124,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self.root = ctk.CTk()
         self.root.title(self.args.window_title)
         self.root.geometry(f"{self.args.canvas_width}x{self.args.canvas_height}")
+        self.root.attributes("-fullscreen", True)
 
         # 한글 지원 폰트 탐색
         families = list(tkfont.families())
