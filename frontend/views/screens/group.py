@@ -43,6 +43,14 @@ class GroupScreenMixin:
         )
         self.group_list_scroll.pack(fill="both", expand=True, padx=20, pady=(8, 4))
 
+        self.group_list_error_label = ctk.CTkLabel(
+            frame,
+            text="",
+            font=self._make_font(12),
+            **self._error_text_style(),
+        )
+        self.group_list_error_label.pack(fill="x", padx=20, pady=(0, 4))
+
         bottom = ctk.CTkFrame(frame, fg_color="transparent")
         bottom.pack(fill="x", padx=20, pady=(4, 20))
         bottom.grid_columnconfigure((0, 1), weight=1)
@@ -62,6 +70,7 @@ class GroupScreenMixin:
         ).grid(row=0, column=1, padx=(6, 0), sticky="ew")
 
     def _refresh_group_list(self):
+        self.group_list_error_label.configure(text="")
         for widget in self.group_list_scroll.winfo_children():
             widget.destroy()
 
@@ -80,7 +89,7 @@ class GroupScreenMixin:
             self._add_room_item(room["name"], room["room_code"])
 
     def _add_room_item(self, name: str, room_code: str):
-        enter_fn = lambda rc=room_code, n=name: self._start_group_room_flow(rc, n)
+        enter_fn = lambda rc=room_code, n=name: self._on_group_list_room_click(n, rc)
 
         item = ctk.CTkFrame(
             self.group_list_scroll, height=60, corner_radius=8,
@@ -112,6 +121,26 @@ class GroupScreenMixin:
         arrow_lbl = ctk.CTkLabel(item, text="›", font=self._make_font(20), cursor="hand2", text_color=self.theme["text"])
         arrow_lbl.pack(side="right", padx=4)
         arrow_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
+
+    def _on_group_list_room_click(self, name: str, room_code: str):
+        self.group_list_error_label.configure(text="")
+
+        def on_result(result, error):
+            if error:
+                self.group_list_error_label.configure(text=f"서버 오류: {error}")
+                return
+            if not result.get("ok"):
+                err_map = {
+                    "room_not_found": "방을 찾을 수 없습니다. 방 이름과 코드를 확인해주세요.",
+                    "name_and_code_required": "방 이름과 참가 코드를 확인해주세요.",
+                }
+                self.group_list_error_label.configure(
+                    text=err_map.get(result.get("error", ""), "참가 검증에 실패했습니다.")
+                )
+                return
+            self._start_group_room_flow(room_code, name)
+
+        self._call_api("/rooms/join", {"name": name, "room_code": room_code}, on_result)
 
     # ──────────────────────────────────────────────
     # screen_group_join : 단체방 참가 (GROUP_JOIN)
