@@ -380,6 +380,9 @@ class GroupScreenMixin:
                 }
                 self.create_error_label.configure(text=err_map.get(result.get("error", ""), "생성에 실패했습니다."))
                 return
+            # 새 방 생성 성공: 로컈 daily_goal 초기화
+            from services.study_time import clear_daily_goal
+            clear_daily_goal(code)
             room_manager.add_room(name, code, result["id"])
             self.show_screen(GROUP_LIST)
 

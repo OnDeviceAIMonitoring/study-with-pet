@@ -71,6 +71,12 @@ def create_room(name: str, room_code: str) -> dict:
             (name, room_code),
         )
         row_id = cur.lastrowid
+        # 동일 room_code로 오늘 날짜의 이전 공부 기록이 있으면 초기화
+        study_date = date.today().isoformat()
+        conn.execute(
+            "UPDATE room_study SET study_seconds = 0 WHERE room_code = ? AND study_date = ?",
+            (room_code, study_date),
+        )
     return {"id": row_id, "name": name, "room_code": room_code}
 
 

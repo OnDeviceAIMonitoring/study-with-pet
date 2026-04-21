@@ -46,6 +46,24 @@ def save_daily_goal(key: str, minutes: int):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def clear_daily_goal(key: str):
+    """특정 키의 모든 날짜에 대한 목표 시간을 삭제.
+
+    방 삭제/재생성 시 호출하여 목표 설정 화면이 다시 등장하도록 합니다.
+    """
+    if not os.path.exists(DAILY_GOAL_FILE):
+        return
+    try:
+        with open(DAILY_GOAL_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if key in data:
+            del data[key]
+            with open(DAILY_GOAL_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 def get_consecutive_goal_days(key: str) -> int:
     """목표를 연속으로 설정한 일수를 반환 (오늘 포함).
 

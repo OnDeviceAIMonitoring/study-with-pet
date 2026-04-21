@@ -125,6 +125,8 @@ async def create_room(payload: _RoomPayload) -> dict:
     if database.exists_room_name(name):
         return {"ok": False, "error": "room_name_exists"}
     room = database.create_room(name, room_code)
+    # 인메모리 타이머도 초기화 (같은 room_code 재사용 시 잔여 데이터 제거)
+    ROOM_STUDY_TIMER.pop(room_code, None)
     return {"ok": True, **room}
 
 
