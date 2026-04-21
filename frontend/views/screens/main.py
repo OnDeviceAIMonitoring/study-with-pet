@@ -142,7 +142,7 @@ class MainScreenMixin:
 
         candidates = []
         for char in char_list:
-            name = char.get("name", "maltese")
+            name = char.get("breed", "maltese")
             stage = get_stage_name_from_growth(char.get("growth", 0))
             frames = self._load_main_char_frames(name, stage, char_w, char_h)
             if frames:
