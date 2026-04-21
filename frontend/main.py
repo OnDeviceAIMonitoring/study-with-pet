@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--room", default="TEST_ROOM")
     parser.add_argument("--name", default="viewer_user")
     parser.add_argument("--duration", type=int, default=0)
-    parser.add_argument("--window-title", default="Digital Pet Room Viewer")
+    parser.add_argument("--window-title", default="Study With Pet")
     parser.add_argument("--canvas-width", type=int, default=1024)
     parser.add_argument("--canvas-height", type=int, default=600)
     parser.add_argument("--left-reserved-width", type=int, default=300)
