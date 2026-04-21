@@ -14,28 +14,10 @@ from typing import Tuple
 
 import numpy as np
 import cv2
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 
 CAMERA_BORDER_BGR = (200, 217, 227)  # BGR for #E3D9C8
-
-_LABEL_FONT_CANDIDATES = [
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-]
-
-_GROUP_LABEL_HEIGHT = 28
-
-
-def _load_label_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for font_path in _LABEL_FONT_CANDIDATES:
-        try:
-            return ImageFont.truetype(font_path, size=size)
-        except Exception:
-            continue
-    return ImageFont.load_default()
 
 
 
@@ -79,30 +61,13 @@ def draw_label(
     draw_border: bool = True,
     label_style: str = "default",
 ) -> np.ndarray:
-    """프레임 상단에 닉네임과 하단에 업데이트 시간 라벨을 그립니다."""
-    label = nickname
+    """프레임에 보더와 업데이트 시간 라벨을 그립니다 (닉네임 표시 제거됨)."""
+    timestamp_y = frame.shape[0] - 10
 
     if draw_border:
         draw_rect_border(frame, color=CAMERA_BORDER_BGR, thickness=3)
 
-    if label_style == "group":
-        overlay = frame.copy()
-        cv2.rectangle(overlay, (0, 0), (frame.shape[1], _GROUP_LABEL_HEIGHT), (255, 255, 255), -1)
-        cv2.addWeighted(overlay, 0.72, frame, 0.28, 0, frame)
-
-        pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(pil)
-        font = _load_label_font(13)
-        text_bbox = draw.textbbox((0, 0), label, font=font)
-        text_h = text_bbox[3] - text_bbox[1]
-        text_y = max(5, (_GROUP_LABEL_HEIGHT - text_h) // 2)
-        draw.text((10, text_y), label, fill=(0, 0, 0), font=font)
-        frame[:, :] = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
-    else:
-        cv2.rectangle(frame, (0, 0), (frame.shape[1], 34), (25, 25, 25), -1)
-        cv2.putText(frame, label, (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-    cv2.putText(frame, updated_at, (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1)
+    cv2.putText(frame, updated_at, (10, timestamp_y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1)
     return frame
 
 

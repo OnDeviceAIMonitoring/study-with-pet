@@ -47,7 +47,7 @@ from .states import CameraState, PersonalStudyState, GroupStudyState, Navigation
 from .screen_manager import ScreenManager
 from .onscreen_keyboard import OnScreenKeyboard
 from .layouts import compose_grid, compose_group, compose_others_column
-from .frame_utils import build_waiting_frame, draw_rect_border, CAMERA_BORDER_BGR
+from .frame_utils import build_waiting_frame, draw_rect_border, draw_label, CAMERA_BORDER_BGR
 
 
 class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin, DailyGoalTimeSettingScreenMixin):
@@ -454,6 +454,15 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 main_canvas = build_waiting_frame(self.args.canvas_width, self.args.canvas_height)
             else:
                 main_canvas = local_frame
+
+            main_canvas = draw_label(
+                main_canvas,
+                self.args.name,
+                True,
+                datetime.now().isoformat(timespec="seconds"),
+                draw_border=False,
+                label_style="group",
+            )
 
             draw_rect_border(main_canvas, color=CAMERA_BORDER_BGR, thickness=4)
 
