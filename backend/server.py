@@ -11,6 +11,7 @@
 이 파일의 주석과 함수 설명은 한국어로 작성되어 있어 코드 이해를 돕습니다.
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict
 
@@ -18,9 +19,17 @@ import socketio
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from backend import database
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    database.init_db()
+    yield
+
 
 # FastAPI 앱과 Socket.IO 서버 인스턴스
-app = FastAPI(title="Digital Pet Comm Test Server")
+app = FastAPI(title="Digital Pet Comm Test Server", lifespan=lifespan)
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 ROOM_LIMIT = 6
 
@@ -29,9 +38,6 @@ SID_INFO: Dict[str, Dict[str, str]] = {}
 
 # room_code -> {sid: nickname}
 ROOM_MEMBERS: Dict[str, Dict[str, str]] = {}
-
-# 단체방 등록: room_code -> room_name
-ROOM_REGISTRY: Dict[str, str] = {}
 
 
 class _RoomPayload(BaseModel):
@@ -44,16 +50,14 @@ async def create_room(payload: _RoomPayload) -> dict:
     """단체방 생성 엔드포인트
 
     요청 body: {name, room_code}
-    반환값: ok, name, room_code 또는 오류 코드
+    반환값: ok, id, name, room_code 또는 오류 코드
     """
     name = payload.name.strip()
     room_code = payload.room_code.strip()
     if not name or not room_code:
         return {"ok": False, "error": "name_and_code_required"}
-    if room_code in ROOM_REGISTRY:
-        return {"ok": False, "error": "room_code_exists"}
-    ROOM_REGISTRY[room_code] = name
-    return {"ok": True, "name": name, "room_code": room_code}
+    room = database.create_room(name, room_code)
+    return {"ok": True, **room}
 
 
 @app.post("/rooms/join")
@@ -67,19 +71,16 @@ async def join_room_http(payload: _RoomPayload) -> dict:
     room_code = payload.room_code.strip()
     if not name or not room_code:
         return {"ok": False, "error": "name_and_code_required"}
-    registered_name = ROOM_REGISTRY.get(room_code)
-    if registered_name is None:
+    room = database.find_room(name, room_code)
+    if room is None:
         return {"ok": False, "error": "room_not_found"}
-    if registered_name != name:
-        return {"ok": False, "error": "name_mismatch"}
-    return {"ok": True, "name": registered_name, "room_code": room_code}
+    return {"ok": True, **room}
 
 
 @app.get("/rooms")
 async def list_rooms() -> dict:
     """등록된 단체방 목록 조회"""
-    rooms = [{"name": v, "room_code": k} for k, v in ROOM_REGISTRY.items()]
-    return {"ok": True, "rooms": rooms}
+    return {"ok": True, "rooms": database.list_rooms()}
 
 
 @app.get("/health")
