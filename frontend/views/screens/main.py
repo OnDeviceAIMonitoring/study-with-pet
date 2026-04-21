@@ -1,5 +1,6 @@
 """
 메인 화면(screen_main) 빌드 Mixin
+— 이미지/애니 프레임은 캐시하여 재사용, 위젯만 갱신
 """
 import os
 import random
@@ -15,6 +16,19 @@ from services.study_time import load_daily_goal
 
 class MainScreenMixin:
 
+    # ── 캐시 초기화 (최초 1회) ──
+
+    def _ensure_main_cache(self):
+        """캐시 딕셔너리가 없으면 초기화"""
+        if not hasattr(self, "_main_anim_cache"):
+            self._main_anim_cache = {}   # (name, stage, w, h) → [CTkImage]
+        if not hasattr(self, "_main_title_cache"):
+            self._main_title_cache = None  # CTkImage
+        if not hasattr(self, "_main_anim_gen"):
+            self._main_anim_gen = 0  # 세대 카운터로 이전 타이머 무효화
+
+    # ── 이벤트 핸들러 ──
+
     def _on_personal_study(self):
         # 개인 목표: 유저명 기준으로 오늘 미설정 시 목표 입력 화면 표시
         if load_daily_goal(self.args.name) is None:
@@ -28,7 +42,68 @@ class MainScreenMixin:
         """목표 설정 완료 후 캐릭터 선택 화면으로 이동"""
         self.show_screen(SELECT_CHAR)
 
+    # ── 캐시된 애니메이션 프레임 로드 ──
+
+    def _load_main_char_frames(self, name, stage, char_w, char_h):
+        """캐릭터 happy 프레임을 캐시에서 반환, 없으면 로드 후 캐싱"""
+        self._ensure_main_cache()
+        cache_key = (name, stage, char_w, char_h)
+        if cache_key in self._main_anim_cache:
+            return self._main_anim_cache[cache_key]
+
+        happy_dir = f"frontend/assets/characters/{name}/{stage}/happy"
+        if not os.path.isdir(happy_dir):
+            return []
+        pngs = sorted([f for f in os.listdir(happy_dir) if f.endswith('.png')])
+        if not pngs:
+            return []
+
+        frames = []
+        for fn in pngs:
+            try:
+                pil_img = Image.open(os.path.join(happy_dir, fn)).convert("RGBA")
+                bg = Image.new("RGBA", (char_w, char_h), (0, 0, 0, 0))
+                pil_img.thumbnail((char_w, char_h), Image.LANCZOS)
+                ox = (char_w - pil_img.width) // 2
+                oy = (char_h - pil_img.height) // 2
+                bg.paste(pil_img, (ox, oy), pil_img)
+                ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(char_w, char_h))
+                frames.append(ctk_img)
+            except Exception:
+                continue
+
+        if frames:
+            self._main_anim_cache[cache_key] = frames
+        return frames
+
+    def _load_main_title_image(self, canvas_w):
+        """타이틀 이미지를 캐시에서 반환, 없으면 로드 후 캐싱"""
+        self._ensure_main_cache()
+        if self._main_title_cache is not None:
+            return self._main_title_cache
+
+        title_image_path = "frontend/assets/title.png"
+        if not os.path.exists(title_image_path):
+            return None
+        try:
+            pil_title = Image.open(title_image_path).convert("RGBA")
+            max_w = min(460, max(180, canvas_w - 220))
+            max_h = 120
+            pil_title.thumbnail((max_w, max_h), Image.LANCZOS)
+            img = ctk.CTkImage(
+                light_image=pil_title,
+                dark_image=pil_title,
+                size=(pil_title.width, pil_title.height),
+            )
+            self._main_title_cache = img
+            return img
+        except Exception:
+            return None
+
+    # ── 화면 빌드 (위젯만 생성, 이미지는 캐시 사용) ──
+
     def _build_screen_main(self):
+        self._ensure_main_cache()
         frame = self.screen_main
         frame.grid_columnconfigure(0, weight=1)
 
@@ -61,33 +136,15 @@ class MainScreenMixin:
             right_x = right_area_x + max(0, (right_area_w - char_w) // 2)
             fixed_slots.append((right_x, center_y))
 
-        # ── 캐릭터 라벨 먼저 생성 (z-order상 버튼보다 아래로 위치) ──
+        # ── 캐릭터 라벨 (캐시된 프레임 사용) ──
         self.screen_main_characters = []
         char_list = load_characters(sort_by_last_accessed=True)
 
         candidates = []
         for char in char_list:
             name = char.get("name", "maltese")
-            ctype = get_stage_name_from_growth(char.get("growth", 0))
-            happy_dir = f"frontend/assets/characters/{name}/{ctype}/happy"
-            if not os.path.isdir(happy_dir):
-                continue
-            pngs = sorted([f for f in os.listdir(happy_dir) if f.endswith('.png')])
-            if not pngs:
-                continue
-            frames = []
-            for fn in pngs:
-                try:
-                    pil_img = Image.open(os.path.join(happy_dir, fn)).convert("RGBA")
-                    bg = Image.new("RGBA", (char_w, char_h), (0, 0, 0, 0))
-                    pil_img.thumbnail((char_w, char_h), Image.LANCZOS)
-                    ox = (char_w - pil_img.width) // 2
-                    oy = (char_h - pil_img.height) // 2
-                    bg.paste(pil_img, (ox, oy), pil_img)
-                    ctk_img = ctk.CTkImage(light_image=bg, dark_image=bg, size=(char_w, char_h))
-                    frames.append(ctk_img)
-                except Exception:
-                    continue
+            stage = get_stage_name_from_growth(char.get("growth", 0))
+            frames = self._load_main_char_frames(name, stage, char_w, char_h)
             if frames:
                 candidates.append({"frames": frames})
 
@@ -111,24 +168,12 @@ class MainScreenMixin:
         frame.grid_rowconfigure(top_spacer_row, weight=1)
         frame.grid_rowconfigure(bottom_spacer_row, weight=1)
 
-        # ── 타이틀·버튼을 캐릭터 위에 생성 ──
-        title_image_path = "frontend/assets/title.png"
+        # ── 타이틀 (캐시된 이미지 사용) ──
+        title_img = self._load_main_title_image(canvas_w)
         title = None
-        if os.path.exists(title_image_path):
-            try:
-                pil_title = Image.open(title_image_path).convert("RGBA")
-                max_w = min(460, max(180, canvas_w - 220))
-                max_h = 120
-                pil_title.thumbnail((max_w, max_h), Image.LANCZOS)
-                self._screen_main_title_image = ctk.CTkImage(
-                    light_image=pil_title,
-                    dark_image=pil_title,
-                    size=(pil_title.width, pil_title.height),
-                )
-                title = ctk.CTkLabel(frame, image=self._screen_main_title_image, text="")
-            except Exception:
-                title = None
-
+        if title_img is not None:
+            self._screen_main_title_image = title_img
+            title = ctk.CTkLabel(frame, image=title_img, text="")
         if title is None:
             title = ctk.CTkLabel(
                 frame,
@@ -153,17 +198,28 @@ class MainScreenMixin:
             btn.grid(row=first_button_row + i, column=0, pady=12, padx=20)
             self.screen_main_buttons.append(btn)
 
+        # 세대 카운터 증가 → 이전 타이머 콜백 자동 무효화
+        self._main_anim_gen += 1
         self.screen_main_anim_running = True
-        self.screen_main_anim_update()
+        self._screen_main_anim_tick(self._main_anim_gen)
 
-    def screen_main_anim_update(self):
+    # ── 애니메이션 (세대 카운터로 중복 방지) ──
+
+    def _screen_main_anim_tick(self, gen):
+        """세대(gen)가 현재와 일치할 때만 실행 — 이전 타이머는 자동 폐기"""
+        if gen != getattr(self, "_main_anim_gen", -1):
+            return
         if not getattr(self, "screen_main_anim_running", False):
             return
         for c in getattr(self, "screen_main_characters", []):
             c["frame_idx"] = (c["frame_idx"] + 1) % c["frame_cnt"]
             if c["label"] is not None:
                 c["label"].configure(image=c["frames"][c["frame_idx"]])
-        self.root.after(200, self.screen_main_anim_update)
+        self.root.after(200, self._screen_main_anim_tick, gen)
         is_fs = bool(self.root.attributes("-fullscreen"))
         if not is_fs:
             self.root.attributes("-fullscreen", True)
+
+    def _stop_main_anim(self):
+        """MAIN 화면을 떠날 때 애니메이션 정지"""
+        self.screen_main_anim_running = False

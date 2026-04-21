@@ -271,7 +271,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             self._build_screen_char_create()
         
         # 화면 등록
-        self.screen_manager.register(MAIN, self.screen_main, on_show=_on_show_main)
+        self.screen_manager.register(MAIN, self.screen_main, on_show=_on_show_main, on_hide=self._stop_main_anim)
         self.screen_manager.register(GROUP_LIST, self.screen_group_list, on_show=_on_show_group_list)
         self.screen_manager.register(GROUP_CREATE, self.screen_group_create, on_show=_on_show_group_create)
         self.screen_manager.register(GROUP_JOIN, self.screen_group_join, on_show=_on_show_group_join)
