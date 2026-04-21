@@ -13,5 +13,10 @@
     "name": "r",
     "room_code": "1",
     "id": 1
+  },
+  {
+    "id": 3,
+    "name": "w",
+    "room_code": "1"
   }
 ]

@@ -2,8 +2,8 @@
 SQLite 데이터베이스 초기화 및 단체방 CRUD 모듈
 
 테이블:
-- rooms: id(PK), name, room_code, created_at
-  room_code는 유니크하지 않으며, id가 고유 식별자입니다.
+- rooms: id(PK), name(UNIQUE), room_code, created_at
+    room_code는 유니크하지 않으며, id가 고유 식별자입니다.
 """
 
 import sqlite3
@@ -20,11 +20,15 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS rooms (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                name        TEXT    NOT NULL,
+                name        TEXT    NOT NULL UNIQUE,
                 room_code   TEXT    NOT NULL,
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             )
             """
+        )
+        # 기존 DB(이미 생성된 rooms 테이블)에도 이름 유니크 제약을 적용하기 위해 인덱스를 보장합니다.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_name_unique ON rooms(name)"
         )
 
 
