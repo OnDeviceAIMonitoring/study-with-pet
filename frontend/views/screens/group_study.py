@@ -207,7 +207,7 @@ class GroupStudyMixin:
             self._group_pause_accumulated += pause_dur
             self._group_paused = False
             if hasattr(self, '_group_pause_btn'):
-                self._group_pause_btn.configure(text="⏸ 일시정지")
+                self._group_pause_btn.configure(text="|| 일시정지")
             socketio_client.send_study_status(self, "studying")
         else:
             self._group_paused = True

@@ -278,7 +278,7 @@ class PersonalStudyMixin:
             pause_dur = time.time() - self._personal_pause_start
             self._personal_pause_accumulated += pause_dur
             self._personal_paused = False
-            self._personal_pause_btn.configure(text="⏸ 일시정지")
+            self._personal_pause_btn.configure(text="|| 일시정지")
         else:
             # 일시정지
             self._personal_paused = True
