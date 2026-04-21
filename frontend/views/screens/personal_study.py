@@ -166,16 +166,16 @@ class PersonalStudyMixin:
         self._study_time_label = ctk.CTkLabel(top, text=f"공부시간: 00:00:00 / {goal_str}", font=self._make_font(14), text_color=self.theme["text_muted"])
         self._study_time_label.pack(side="left", padx=20)
 
+        ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_camera_back,
+              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
+        
         self._personal_pause_btn = ctk.CTkButton(
-            top, text="⏸ 일시정지", width=110, height=36,
+            top, text="|| 일시정지", width=110, height=36,
             font=self._make_font(14),
             command=self._toggle_personal_pause,
             **self._exit_button_style(),
         )
         self._personal_pause_btn.pack(side="right", padx=(0, 8), pady=0)
-
-        ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_camera_back,
-              font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
         # ── 목표 시간 대비 진행 바 ──
         self._personal_progress_bar = ctk.CTkProgressBar(
