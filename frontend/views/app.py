@@ -435,9 +435,8 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 overlay = Image.new("RGBA", pil_rgba.size, (0, 0, 0, 0))
                 overlay.paste(g, (gx, gy))
                 pil = Image.alpha_composite(pil_rgba, overlay).convert("RGB")
-            img_tk = ImageTk.PhotoImage(pil)
-            self.img_label.image = img_tk
-            self.img_label.configure(image=img_tk)
+            ctk_img = ctk.CTkImage(light_image=pil, dark_image=pil, size=pil.size)
+            self.img_label.configure(image=ctk_img)
 
         elif screen == GROUP_ROOM:
             if not hasattr(self, "group_img_label"):
@@ -472,9 +471,8 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 overlay = Image.new("RGBA", pil_rgba.size, (0, 0, 0, 0))
                 overlay.paste(g, (gx, gy))
                 pil = Image.alpha_composite(pil_rgba, overlay).convert("RGB")
-            img_tk = ImageTk.PhotoImage(pil)
-            self.group_img_label.image = img_tk
-            self.group_img_label.configure(image=img_tk)
+            ctk_img = ctk.CTkImage(light_image=pil, dark_image=pil, size=pil.size)
+            self.group_img_label.configure(image=ctk_img)
 
             # 다른 참가자 사이드 컬럼
             if hasattr(self, "_group_others_label"):

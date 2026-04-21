@@ -23,35 +23,60 @@ from services.camera_signals import DEFAULT_ANIM
 from services.character_store import save_characters, touch_character
 
 
-def _generate_beep_wav(freq=1000, duration_ms=200, volume=0.5, sample_rate=22050):
-    """순수 stdlib로 비프음 WAV 바이트를 생성합니다."""
-    n_samples = int(sample_rate * duration_ms / 1000)
+def _make_tone(freq, duration_ms, volume=0.5, sample_rate=22050):
+    """단일 주파수 톤 PCM 프레임 생성."""
+    n = int(sample_rate * duration_ms / 1000)
+    return b''.join(
+        struct.pack('<h', int(volume * 32767 * math.sin(2 * math.pi * freq * i / sample_rate)))
+        for i in range(n)
+    )
+
+
+def _make_silence(duration_ms, sample_rate=22050):
+    return b'\x00\x00' * int(sample_rate * duration_ms / 1000)
+
+
+def _generate_alarm_wav(sample_rate=22050):
+    """경박한 알람 패턴 WAV 생성.
+
+    패턴: (삐-- 삐삐삐) × 4 + 쉴  ≈ 2초
+    LONG = 100ms 화음(1200+2400Hz), SHORT = 45ms 높은 음(1500Hz)
+    """
+    data = b''
+    for rep in range(4):
+        # LONG beep: 100ms 화음 (기본음 + 옥타브)
+        data += _make_tone(1500, 100, 0.45, sample_rate)
+        data += _make_silence(25, sample_rate)
+        # 3× SHORT beep: 45ms 높은 톤
+        for j in range(3):
+            data += _make_tone(1500, 45, 0.40, sample_rate)
+            data += _make_silence(25, sample_rate)
+        # 그룹 간 간격
+        data += _make_silence(35, sample_rate)
+    # 마지막 여백
+    data += _make_silence(300, sample_rate)
+
     buf = io.BytesIO()
     with wave.open(buf, 'wb') as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
-        frames = b''.join(
-            struct.pack('<h', int(volume * 32767 * math.sin(2 * math.pi * freq * i / sample_rate)))
-            for i in range(n_samples)
-        )
-        wf.writeframes(frames)
+        wf.writeframes(data)
     return buf.getvalue()
 
 
-_BEEP_WAV = _generate_beep_wav(freq=1000, duration_ms=200)
+_ALARM_WAV = _generate_alarm_wav()
 
 
 def _play_beep():
-    """Windows/Linux 모두 지원하는 비프음 재생."""
+    """Windows/Linux 모두 지원하는 알람음 재생."""
     if _HAS_WINSOUND:
-        winsound.PlaySound(_BEEP_WAV, winsound.SND_MEMORY)
+        winsound.PlaySound(_ALARM_WAV, winsound.SND_MEMORY)
         return
-    # Linux / macOS: aplay 또는 paplay 사용
     for cmd in (['aplay', '-q', '-'], ['paplay', '--raw', '--format=s16le', '--rate=22050', '--channels=1']):
         try:
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            p.communicate(input=_BEEP_WAV, timeout=3)
+            p.communicate(input=_ALARM_WAV, timeout=5)
             return
         except Exception:
             continue
@@ -267,9 +292,9 @@ class PersonalStudyMixin:
                 self._goblin_frame_idx = 0
                 self._goblin_beep_counter = 0
             self._goblin_frame_idx = (self._goblin_frame_idx + 1) % len(goblin_frames)
-            # 1초마다 비프음 (5 × 200ms = 1000ms)
+            # 알람 패턴 재생 (≈2초, 10 × 200ms 간격)
             self._goblin_beep_counter += 1
-            if self._goblin_beep_counter % 5 == 1:
+            if self._goblin_beep_counter % 10 == 1:
                 threading.Thread(target=_play_beep, daemon=True).start()
         else:
             if self._goblin_visible:

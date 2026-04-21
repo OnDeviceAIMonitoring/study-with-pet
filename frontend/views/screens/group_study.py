@@ -247,9 +247,9 @@ class GroupStudyMixin:
                 self._group_goblin_frame_idx = 0
                 self._group_goblin_beep_counter = 0
             self._group_goblin_frame_idx = (self._group_goblin_frame_idx + 1) % len(goblin_frames)
-            # 1초마다 비프음 (5 × 200ms = 1000ms)
+            # 알람 패턴 재생 (≈2초, 10 × 200ms 간격)
             self._group_goblin_beep_counter += 1
-            if self._group_goblin_beep_counter % 5 == 1:
+            if self._group_goblin_beep_counter % 10 == 1:
                 from .personal_study import _play_beep
                 threading.Thread(target=_play_beep, daemon=True).start()
         else:
