@@ -100,6 +100,12 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self._pending_group_room = None
         self._selected_char = None
 
+        # 서버 동기화 상태 (단체방 공부 시간)
+        self._group_server_study_seconds = 0
+        self._group_server_goal_minutes = 0
+        self._group_server_all_studying = True
+        self._group_member_statuses = {}
+
         # 단체방 왼쪽 캐릭터 오버레이 상태
         self._group_char_frames = []
         self._group_char_frame_idx = 0

@@ -1,5 +1,9 @@
 """개인/그룹 공통 화면 흐름(Flow) Mixin."""
 
+import json
+import threading
+import urllib.request
+
 from config import DAILY_GOAL, GROUP_LIST, GROUP_ROOM, MAIN, PERSONAL_CAMERA, SELECT_CHAR
 from services import socketio_client
 from services.character_store import load_characters, save_characters, touch_character
@@ -24,10 +28,33 @@ class StudyFlowMixin:
         self._continue_group_room_flow()
 
     def _continue_group_room_flow(self):
-        """목표 설정 완료 후 캐릭터 선택으로 진행"""
+        """목표 설정 완료 후 캐릭터 선택으로 진행 + 서버에 목표 저장"""
+        # 단체방 목표 시간을 서버에도 저장
+        pending = self.nav_state.pending_group_room
+        if pending:
+            room_code = pending[0]
+            goal = load_daily_goal(room_code)
+            if goal is not None:
+                self._save_group_goal_to_server(room_code, goal)
         self._screen_char_select_page = 0
         self._refresh_char_select()
         self.show_screen(SELECT_CHAR)
+
+    def _save_group_goal_to_server(self, room_code: str, goal_minutes: int):
+        """서버에 단체방 목표 시간 저장 (비동기)."""
+        def _worker():
+            try:
+                url = f"{self.args.server}/rooms/goal"
+                data = json.dumps({"room_code": room_code, "goal_minutes": goal_minutes}).encode("utf-8")
+                req = urllib.request.Request(
+                    url, data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                urllib.request.urlopen(req, timeout=5)
+            except Exception as exc:
+                print(f"[study_flow] goal save error: {exc}")
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _enter_group_room(self, room_code: str, room_name: str):
         """단체방 공부 세션을 시작합니다."""

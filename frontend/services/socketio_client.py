@@ -28,6 +28,25 @@ def start_background(app, generation: int = 0):
     t.start()
 
 
+def send_study_status(app, status: str):
+    """공부 상태를 서버에 전송합니다.
+
+    status: "studying" | "paused" | "off_task"
+    """
+    sio = getattr(app, "sio", None)
+    if sio is None or not sio.connected:
+        return
+    try:
+        loop = sio.eio._loop
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                sio.emit("study_status", {"status": status}),
+                loop,
+            )
+    except Exception as exc:
+        print(f"[viewer:ctk] study_status send error: {exc}")
+
+
 def _cleanup_stale_frames(app, stale_seconds: float = 3.0):
     """일정 시간 동안 갱신되지 않은 원격 프레임을 frame_map에서 제거합니다."""
     now = datetime.now()
@@ -103,6 +122,24 @@ async def _socketio_main(app, generation: int):
             with app.lock:
                 app.frame_map.pop(nickname, None)
             print(f"[viewer:ctk] removed frame for disconnected member: {nickname}")
+
+    @sio.on("room_study_progress")
+    async def on_room_study_progress(data):
+        """서버에서 공부 진행 상황 수신."""
+        if getattr(app, "_socket_generation", 0) != generation:
+            return
+        # UI 스레드에서 처리하기 위해 상태만 저장
+        app._group_server_study_seconds = data.get("study_seconds", 0)
+        app._group_server_goal_minutes = data.get("goal_minutes", 0)
+        app._group_server_all_studying = data.get("all_studying", True)
+
+    @sio.on("room_study_status")
+    async def on_room_study_status(data):
+        """멤버별 공부 상태 수신."""
+        if getattr(app, "_socket_generation", 0) != generation:
+            return
+        app._group_server_all_studying = data.get("all_studying", True)
+        app._group_member_statuses = data.get("member_statuses", {})
 
     @sio.event
     async def disconnect():
