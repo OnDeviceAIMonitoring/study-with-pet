@@ -362,11 +362,14 @@ class CameraScreenMixin:
         detectors_list = []
         if _DETECTORS_AVAILABLE:
             try:
+                off_task_det = OffTaskDetector()
+                drowsiness_det = DrowsinessDetector()
+                drowsiness_det.off_task_detector = off_task_det
                 detectors_list = [
-                    DrowsinessDetector(),
+                    off_task_det,
+                    drowsiness_det,
                     FidgetDetector(),
                     HeartDetector(),
-                    OffTaskDetector(),
                 ]
                 print(f"[screen_camera] {len(detectors_list)} detectors initialized (sequential)")
             except Exception:

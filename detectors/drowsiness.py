@@ -88,6 +88,9 @@ class DrowsinessDetector(BaseDetector):
         self.head_down_start   = None
         self.head_down_drowsy  = False
 
+        # 외부 참조 (off_task 상태 확인용)
+        self.off_task_detector = None   # camera.py에서 주입
+
         # HUD용 최신 값
         self._ear = 0.0
         self._pitch = 0.0
@@ -95,6 +98,7 @@ class DrowsinessDetector(BaseDetector):
         self._ear_thresh = _EAR_THRESH_UP_INIT
         self._face_visible = False
         self._deep_mode = False
+        self._person_out = False       # 사람이 화면 밖
 
     # ── adaptive threshold ──────────────────────────────
     def _adaptive_ear_thresh(self, pitch):
@@ -161,12 +165,29 @@ class DrowsinessDetector(BaseDetector):
                     self.counter = 0
                     self.alarm_on = False
         else:
-            if (now - self.last_face_time) > _NO_FACE_SEC:
-                self.no_face_head_down = True
+            # off_task의 status_tracker_out으로 사람이 화면 안에 있는지 판단
+            person_out = False
+            if self.off_task_detector is not None:
+                st = getattr(self.off_task_detector, '_status', None) or {}
+                person_out = st.get('status_tracker_out', False)
+            # pose도 안 잡히면 사람이 없는 것으로 간주
+            if not person_out and self._pose_pitch is None:
+                person_out = True
+            self._person_out = person_out
 
-        # ── 경로 B ──
+            if person_out:
+                # 사람이 화면 밖 → drowsiness 판단 안 함
+                self.no_face_head_down = False
+                self.head_down_start = None
+                self.head_down_drowsy = False
+            else:
+                # 사람이 화면 안인데 face mesh 안 잡힘 → 고개 숙임(down)
+                if (now - self.last_face_time) > _NO_FACE_SEC:
+                    self.no_face_head_down = True
+
+        # ── 경로 B (사람이 화면 안에 있을 때만) ──
         head_down_now = False
-        if not self._face_visible:
+        if not self._face_visible and not self._person_out:
             if self._pose_pitch is not None:
                 head_down_now = self._pose_pitch < self.normal_pitch - _HEAD_DOWN_OFFSET
             else:
