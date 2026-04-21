@@ -56,6 +56,8 @@ async def create_room(payload: _RoomPayload) -> dict:
     room_code = payload.room_code.strip()
     if not name or not room_code:
         return {"ok": False, "error": "name_and_code_required"}
+    if database.exists_room_name(name):
+        return {"ok": False, "error": "room_name_exists"}
     room = database.create_room(name, room_code)
     return {"ok": True, **room}
 

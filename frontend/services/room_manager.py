@@ -43,7 +43,7 @@ def add_room(name: str, room_code: str, room_id: int) -> None:
     save_rooms(rooms)
 
 
-def remove_room(room_code: str) -> None:
+def remove_room(room_id: int) -> None:
     """단체방을 목록에서 제거합니다."""
-    rooms = [r for r in load_rooms() if r["room_code"] != room_code]
+    rooms = [r for r in load_rooms() if r.get("id") != room_id]
     save_rooms(rooms)

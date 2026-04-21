@@ -86,10 +86,11 @@ class GroupScreenMixin:
             return
 
         for room in rooms:
-            self._add_room_item(room["name"], room["room_code"])
+            self._add_room_item(room["id"], room["name"], room["room_code"])
 
-    def _add_room_item(self, name: str, room_code: str):
+    def _add_room_item(self, room_id: int, name: str, room_code: str):
         enter_fn = lambda rc=room_code, n=name: self._on_group_list_room_click(n, rc)
+        delete_fn = lambda rid=room_id: self._remove_group_list_room(rid)
 
         item = ctk.CTkFrame(
             self.group_list_scroll, height=60, corner_radius=8,
@@ -113,14 +114,23 @@ class GroupScreenMixin:
         name_lbl.pack(side="left", padx=16)
         name_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
 
-        code_lbl = ctk.CTkLabel(item, text=f"#{room_code}", font=self._make_font(12),
-                                 text_color=self.theme["text_muted"], cursor="hand2")
-        code_lbl.pack(side="right", padx=16)
-        code_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
+        delete_btn = ctk.CTkButton(
+            item,
+            text="X",
+            width=32,
+            height=32,
+            command=delete_fn,
+            font=self._make_font(13),
+            fg_color="transparent",
+            hover_color=self.theme["sand"],
+            text_color=self.theme["text_muted"],
+            border_width=0,
+        )
+        delete_btn.pack(side="right", padx=12)
 
-        arrow_lbl = ctk.CTkLabel(item, text="›", font=self._make_font(20), cursor="hand2", text_color=self.theme["text"])
-        arrow_lbl.pack(side="right", padx=4)
-        arrow_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
+    def _remove_group_list_room(self, room_id: int):
+        room_manager.remove_room(room_id)
+        self._refresh_group_list()
 
     def _on_group_list_room_click(self, name: str, room_code: str):
         self.group_list_error_label.configure(text="")
@@ -311,7 +321,7 @@ class GroupScreenMixin:
             if not result.get("ok"):
                 self.create_submit_btn.configure(state="normal", text="생성하기")
                 err_map = {
-                    "room_code_exists": "이미 사용 중인 참가 코드입니다. 다른 코드를 입력해주세요.",
+                    "room_name_exists": "이미 존재하는 단체방 이름입니다. 다른 이름을 입력해주세요.",
                     "name_and_code_required": "방 이름과 참가 코드를 입력해주세요.",
                 }
                 self.create_error_label.configure(text=err_map.get(result.get("error", ""), "생성에 실패했습니다."))

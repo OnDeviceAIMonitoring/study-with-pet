@@ -54,6 +54,16 @@ def create_room(name: str, room_code: str) -> dict:
     return {"id": row_id, "name": name, "room_code": room_code}
 
 
+def exists_room_name(name: str) -> bool:
+    """동일한 이름의 방이 이미 존재하는지 반환합니다."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM rooms WHERE name = ? LIMIT 1",
+            (name,),
+        ).fetchone()
+    return row is not None
+
+
 def find_room(name: str, room_code: str) -> dict | None:
     """name과 room_code가 일치하는 방을 반환합니다. 없으면 None."""
     with _connect() as conn:
