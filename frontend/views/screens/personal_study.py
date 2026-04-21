@@ -1,15 +1,60 @@
 """개인 공부 화면/성장/캐릭터 UI 로직 Mixin."""
 
+import io
+import math
 import os
+import struct
+import subprocess
 import time
 import threading
+import wave
 
 import customtkinter as ctk
+from PIL import Image
+
+try:
+    import winsound
+    _HAS_WINSOUND = True
+except ImportError:
+    _HAS_WINSOUND = False
 
 from config import MAIN
 from services.camera_signals import DEFAULT_ANIM
-from services.character_animation import _build_ctk_image
 from services.character_store import save_characters, touch_character
+
+
+def _generate_beep_wav(freq=1000, duration_ms=200, volume=0.5, sample_rate=22050):
+    """순수 stdlib로 비프음 WAV 바이트를 생성합니다."""
+    n_samples = int(sample_rate * duration_ms / 1000)
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        frames = b''.join(
+            struct.pack('<h', int(volume * 32767 * math.sin(2 * math.pi * freq * i / sample_rate)))
+            for i in range(n_samples)
+        )
+        wf.writeframes(frames)
+    return buf.getvalue()
+
+
+_BEEP_WAV = _generate_beep_wav(freq=1000, duration_ms=200)
+
+
+def _play_beep():
+    """Windows/Linux 모두 지원하는 비프음 재생."""
+    if _HAS_WINSOUND:
+        winsound.PlaySound(_BEEP_WAV, winsound.SND_MEMORY)
+        return
+    # Linux / macOS: aplay 또는 paplay 사용
+    for cmd in (['aplay', '-q', '-'], ['paplay', '--raw', '--format=s16le', '--rate=22050', '--channels=1']):
+        try:
+            p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            p.communicate(input=_BEEP_WAV, timeout=3)
+            return
+        except Exception:
+            continue
 
 
 class PersonalStudyMixin:
@@ -54,11 +99,11 @@ class PersonalStudyMixin:
         self.img_label = ctk.CTkLabel(frame, text="")
         self.img_label.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # angry_goblin run_to_us 오버레이 (졸음 감지 시 표시)
-        self._goblin_overlay_label = ctk.CTkLabel(frame, text="", fg_color="transparent")
+        # angry_goblin run_to_us 오버레이 상태 (졸음 감지 시 카메라 위에 합성)
         self._goblin_frame_idx = 0
         self._goblin_visible = False
         self._goblin_anim_running = False
+        self._goblin_beep_counter = 0
         self._load_goblin_frames()
 
         # 캐릭터 애니메이션 + 성장도 바 영역
@@ -164,7 +209,7 @@ class PersonalStudyMixin:
             self._camera_char_anim_running = False
 
     def _load_goblin_frames(self):
-        """angry_goblin/run_to_us 애니메이션 커스텀 시퀀스 로드.
+        """angry_goblin/run_to_us PIL RGBA 프레임을 커스텀 시퀀스로 로드.
 
         시퀀스: dok1~dok8 순서대로 재생 → dok7,dok8을 3번 더 반복
         → dok8에서 1초 머무른 뒤 다시 dok1로 루프.
@@ -175,7 +220,7 @@ class PersonalStudyMixin:
         goblin_dir = "frontend/assets/characters/angry_goblin/run_to_us"
         if not os.path.isdir(goblin_dir):
             return
-        target_w = 150
+        target_w = 300
         target_h = int(target_w * 650 / 430)
         raw_frames = []
         for i in range(1, 9):  # dok1 ~ dok8
@@ -183,8 +228,13 @@ class PersonalStudyMixin:
             if not os.path.isfile(path):
                 continue
             try:
-                ctk_img = _build_ctk_image(path, target_w, target_h)
-                raw_frames.append(ctk_img)
+                pil_img = Image.open(path).convert("RGBA")
+                bg = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+                pil_img.thumbnail((target_w, target_h), Image.LANCZOS)
+                ox = (target_w - pil_img.width) // 2
+                oy = (target_h - pil_img.height) // 2
+                bg.paste(pil_img, (ox, oy), pil_img)
+                raw_frames.append(bg)
             except Exception:
                 continue
         if len(raw_frames) < 8:
@@ -199,7 +249,7 @@ class PersonalStudyMixin:
         self._goblin_frames = [raw_frames[i] for i in seq]
 
     def _goblin_anim_tick(self):
-        """200ms마다 졸음 감지 확인 + 고블린 프레임 전환."""
+        """200ms마다 졸음 감지 확인 + 고블린 프레임 전환 + 비프음."""
         if not getattr(self, '_goblin_anim_running', False):
             return
 
@@ -211,17 +261,16 @@ class PersonalStudyMixin:
 
         if is_drowsy and goblin_frames:
             if not self._goblin_visible:
-                self._goblin_overlay_label.place(relx=0.05, rely=0.35, anchor="w")
                 self._goblin_visible = True
                 self._goblin_frame_idx = 0
+                self._goblin_beep_counter = 0
             self._goblin_frame_idx = (self._goblin_frame_idx + 1) % len(goblin_frames)
-            try:
-                self._goblin_overlay_label.configure(image=goblin_frames[self._goblin_frame_idx])
-            except Exception:
-                pass
+            # 1초마다 비프음 (5 × 200ms = 1000ms)
+            self._goblin_beep_counter += 1
+            if self._goblin_beep_counter % 5 == 1:
+                threading.Thread(target=_play_beep, daemon=True).start()
         else:
             if self._goblin_visible:
-                self._goblin_overlay_label.place_forget()
                 self._goblin_visible = False
 
         self.root.after(200, self._goblin_anim_tick)

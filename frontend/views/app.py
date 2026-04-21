@@ -301,6 +301,17 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 except Exception:
                     rgb = frame[:, :, ::-1]
             pil = Image.fromarray(rgb)
+            # 졸음 감지 시 angry_goblin 오버레이 합성 (알파 투명)
+            goblin_frames = getattr(self, '_goblin_frames', [])
+            if getattr(self, '_goblin_visible', False) and goblin_frames:
+                idx = self._goblin_frame_idx % len(goblin_frames)
+                g = goblin_frames[idx]
+                gx = (pil.width - g.width) // 2
+                gy = (pil.height - g.height) // 2
+                pil_rgba = pil.convert("RGBA")
+                overlay = Image.new("RGBA", pil_rgba.size, (0, 0, 0, 0))
+                overlay.paste(g, (gx, gy))
+                pil = Image.alpha_composite(pil_rgba, overlay).convert("RGB")
             img_tk = ImageTk.PhotoImage(pil)
             self.img_label.image = img_tk
             self.img_label.configure(image=img_tk)
@@ -343,6 +354,17 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             except Exception:
                 rgb = canvas[:, :, ::-1]
             pil = Image.fromarray(rgb)
+            # 졸음 감지 시 angry_goblin 오버레이 합성 (단체방)
+            goblin_frames = getattr(self, '_goblin_frames', [])
+            if getattr(self, '_group_goblin_visible', False) and goblin_frames:
+                idx = self._group_goblin_frame_idx % len(goblin_frames)
+                g = goblin_frames[idx]
+                gx = (pil.width - g.width) // 2
+                gy = (pil.height - g.height) // 2
+                pil_rgba = pil.convert("RGBA")
+                overlay = Image.new("RGBA", pil_rgba.size, (0, 0, 0, 0))
+                overlay.paste(g, (gx, gy))
+                pil = Image.alpha_composite(pil_rgba, overlay).convert("RGB")
             img_tk = ImageTk.PhotoImage(pil)
             self.group_img_label.image = img_tk
             self.group_img_label.configure(image=img_tk)

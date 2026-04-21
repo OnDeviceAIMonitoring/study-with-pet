@@ -2,12 +2,12 @@
 
 import os
 import time
+import threading
 
 import customtkinter as ctk
 
 from config import GROUP_LIST
 from services.camera_signals import DEFAULT_ANIM
-from services.character_animation import _build_ctk_image
 
 
 class GroupStudyMixin:
@@ -34,11 +34,11 @@ class GroupStudyMixin:
         self._group_char_growth = ctk.CTkProgressBar(char_area, width=120)
         self._group_char_growth.pack(pady=(2, 0))
 
-        # angry_goblin run_to_us 오버레이 (졸음 감지 시 표시)
-        self._group_goblin_overlay_label = ctk.CTkLabel(frame, text="", fg_color="transparent")
+        # angry_goblin 오버레이 상태 (졸음 감지 시 카메라 위에 합성)
         self._group_goblin_frame_idx = 0
         self._group_goblin_visible = False
         self._group_goblin_anim_running = False
+        self._group_goblin_beep_counter = 0
         self._load_goblin_frames()
 
     # ── 세션 시작/종료 ───────────────────────────────────────
@@ -65,12 +65,7 @@ class GroupStudyMixin:
 
         # 고블린 오버레이 정지
         self._group_goblin_anim_running = False
-        if getattr(self, '_group_goblin_visible', False):
-            try:
-                self._group_goblin_overlay_label.place_forget()
-            except Exception:
-                pass
-            self._group_goblin_visible = False
+        self._group_goblin_visible = False
 
         if save:
             self._save_study_minutes("group", self.group_study_state.elapsed_seconds)
@@ -195,7 +190,7 @@ class GroupStudyMixin:
         self._group_char_anim_running = self.group_study_state.char_anim_running
 
     def _group_goblin_anim_tick(self):
-        """200ms마다 졸음 감지 확인 + 고블린 프레임 전환 (단체방)."""
+        """200ms마다 졸음 감지 확인 + 고블린 프레임 전환 + 비프음 (단체방)."""
         if not getattr(self, '_group_goblin_anim_running', False):
             return
 
@@ -207,17 +202,17 @@ class GroupStudyMixin:
 
         if is_drowsy and goblin_frames:
             if not self._group_goblin_visible:
-                self._group_goblin_overlay_label.place(relx=0.05, rely=0.35, anchor="w")
                 self._group_goblin_visible = True
                 self._group_goblin_frame_idx = 0
+                self._group_goblin_beep_counter = 0
             self._group_goblin_frame_idx = (self._group_goblin_frame_idx + 1) % len(goblin_frames)
-            try:
-                self._group_goblin_overlay_label.configure(image=goblin_frames[self._group_goblin_frame_idx])
-            except Exception:
-                pass
+            # 1초마다 비프음 (5 × 200ms = 1000ms)
+            self._group_goblin_beep_counter += 1
+            if self._group_goblin_beep_counter % 5 == 1:
+                from .personal_study import _play_beep
+                threading.Thread(target=_play_beep, daemon=True).start()
         else:
             if self._group_goblin_visible:
-                self._group_goblin_overlay_label.place_forget()
                 self._group_goblin_visible = False
 
         self.root.after(200, self._group_goblin_anim_tick)
