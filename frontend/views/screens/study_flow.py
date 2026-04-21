@@ -1,5 +1,9 @@
 """개인/그룹 공통 화면 흐름(Flow) Mixin."""
 
+import json
+import threading
+import urllib.request
+
 from config import DAILY_GOAL, GROUP_LIST, GROUP_ROOM, MAIN, PERSONAL_CAMERA, SELECT_CHAR
 from services import socketio_client
 from services.character_store import load_characters, save_characters, touch_character
@@ -24,10 +28,33 @@ class StudyFlowMixin:
         self._continue_group_room_flow()
 
     def _continue_group_room_flow(self):
-        """목표 설정 완료 후 캐릭터 선택으로 진행"""
+        """목표 설정 완료 후 캐릭터 선택으로 진행 + 서버에 목표 저장"""
+        # 단체방 목표 시간을 서버에도 저장
+        pending = self.nav_state.pending_group_room
+        if pending:
+            room_code = pending[0]
+            goal = load_daily_goal(room_code)
+            if goal is not None:
+                self._save_group_goal_to_server(room_code, goal)
         self._screen_char_select_page = 0
         self._refresh_char_select()
         self.show_screen(SELECT_CHAR)
+
+    def _save_group_goal_to_server(self, room_code: str, goal_minutes: int):
+        """서버에 단체방 목표 시간 저장 (비동기)."""
+        def _worker():
+            try:
+                url = f"{self.args.server}/rooms/goal"
+                data = json.dumps({"room_code": room_code, "goal_minutes": goal_minutes}).encode("utf-8")
+                req = urllib.request.Request(
+                    url, data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                urllib.request.urlopen(req, timeout=5)
+            except Exception as exc:
+                print(f"[study_flow] goal save error: {exc}")
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _enter_group_room(self, room_code: str, room_name: str):
         """단체방 공부 세션을 시작합니다."""
@@ -40,6 +67,23 @@ class StudyFlowMixin:
         self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
         self._group_room_code_label.configure(text=f"#코드 {room_code}")
         self._start_group_study_session()
+        # 타이머 루프 재시작 (이전 세션 종료 시 중단되었으므로)
+        self._update_group_study_timer()
+
+        # 현재 방의 목표/진행 값으로 초기화 (이전 방 데이터 잔존 방지)
+        goal_min = load_daily_goal(room_code) or 0
+        self._group_goal_minutes = goal_min
+        self._group_server_study_seconds = 0
+        self._group_server_goal_minutes = goal_min
+        self._group_server_all_studying = True
+        # 라벨도 즉시 갱신
+        g_total = goal_min * 60
+        g_h, g_rem = divmod(g_total, 3600)
+        g_m, g_s = divmod(g_rem, 60)
+        if hasattr(self, '_group_study_time_label'):
+            self._group_study_time_label.configure(
+                text=f"공부시간: 00:00:00 / {g_h:02d}:{g_m:02d}:{g_s:02d}")
+
         socketio_client.start_background(self, self._socket_generation)
         self.start_camera()
 

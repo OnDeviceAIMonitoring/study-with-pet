@@ -7,6 +7,8 @@
 주요 전역 구조:
 - `SID_INFO`: sid(클라이언트 식별자) -> room/nickname 매핑
 - `ROOM_MEMBERS`: room_code -> {sid: nickname} 맵
+- `ROOM_STUDY_STATUS`: room_code -> {sid: "studying"|"paused"|"off_task"} 맵
+- `ROOM_STUDY_TIMER`: room_code -> {"last_tick": float, "accumulated": int} 맵
 
 이 파일의 주석과 함수 설명은 한국어로 작성되어 있어 코드 이해를 돕습니다.
 """
@@ -14,6 +16,8 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict
+import asyncio
+import time as _time
 
 import socketio
 from fastapi import FastAPI
@@ -25,7 +29,58 @@ from backend import database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.init_db()
+    # 방별 공부 시간 틱 태스크 시작
+    task = asyncio.create_task(_room_study_tick_loop())
     yield
+    task.cancel()
+
+
+async def _room_study_tick_loop():
+    """1초마다 모든 방의 공부 시간을 갱신합니다.
+
+    모든 참가자가 'studying' 상태일 때만 시간이 증가합니다.
+    """
+    while True:
+        await asyncio.sleep(1)
+        now = _time.time()
+        for room_code, statuses in list(ROOM_STUDY_STATUS.items()):
+            members = ROOM_MEMBERS.get(room_code, {})
+            if not members:
+                continue
+            # 모든 참가자가 studying 상태인지 확인
+            all_studying = all(
+                statuses.get(sid) == "studying"
+                for sid in members
+            )
+            timer = ROOM_STUDY_TIMER.setdefault(room_code, {"last_tick": now, "accumulated": 0})
+            if all_studying:
+                elapsed = now - timer["last_tick"]
+                if elapsed >= 1.0:
+                    add_secs = int(elapsed)
+                    timer["accumulated"] += add_secs
+                    timer["last_tick"] = now
+                    # DB에 저장
+                    study_data = database.get_room_study(room_code)
+                    new_total = study_data["study_seconds"] + add_secs
+                    database.update_room_study_seconds(room_code, new_total)
+                    # 모든 참가자에게 진행 상황 브로드캐스트
+                    updated = database.get_room_study(room_code)
+                    await sio.emit("room_study_progress", {
+                        "room_code": room_code,
+                        "study_seconds": updated["study_seconds"],
+                        "goal_minutes": updated["goal_minutes"],
+                        "all_studying": True,
+                    }, room=room_code)
+            else:
+                timer["last_tick"] = now
+                # 공부가 멈춘 상태를 알림
+                study_data = database.get_room_study(room_code)
+                await sio.emit("room_study_progress", {
+                    "room_code": room_code,
+                    "study_seconds": study_data["study_seconds"],
+                    "goal_minutes": study_data["goal_minutes"],
+                    "all_studying": False,
+                }, room=room_code)
 
 
 # FastAPI 앱과 Socket.IO 서버 인스턴스
@@ -39,10 +94,21 @@ SID_INFO: Dict[str, Dict[str, str]] = {}
 # room_code -> {sid: nickname}
 ROOM_MEMBERS: Dict[str, Dict[str, str]] = {}
 
+# room_code -> {sid: "studying"|"paused"|"off_task"}
+ROOM_STUDY_STATUS: Dict[str, Dict[str, str]] = {}
+
+# room_code -> {"last_tick": float, "accumulated": int}
+ROOM_STUDY_TIMER: Dict[str, dict] = {}
+
 
 class _RoomPayload(BaseModel):
     name: str
     room_code: str
+
+
+class _RoomGoalPayload(BaseModel):
+    room_code: str
+    goal_minutes: int
 
 
 @app.post("/rooms/create")
@@ -59,6 +125,8 @@ async def create_room(payload: _RoomPayload) -> dict:
     if database.exists_room_name(name):
         return {"ok": False, "error": "room_name_exists"}
     room = database.create_room(name, room_code)
+    # 인메모리 타이머도 초기화 (같은 room_code 재사용 시 잔여 데이터 제거)
+    ROOM_STUDY_TIMER.pop(room_code, None)
     return {"ok": True, **room}
 
 
@@ -81,8 +149,30 @@ async def join_room_http(payload: _RoomPayload) -> dict:
 
 @app.get("/rooms")
 async def list_rooms() -> dict:
-    """등록된 단체방 목록 조회"""
-    return {"ok": True, "rooms": database.list_rooms()}
+    """등록된 단체방 목록 조회 (공부 현황 포함)"""
+    rooms = database.list_rooms()
+    for room in rooms:
+        study = database.get_room_study(room["room_code"])
+        room["goal_minutes"] = study["goal_minutes"]
+        room["study_seconds"] = study["study_seconds"]
+    return {"ok": True, "rooms": rooms}
+
+
+@app.post("/rooms/goal")
+async def set_room_goal(payload: _RoomGoalPayload) -> dict:
+    """단체방 목표 시간 설정"""
+    room_code = payload.room_code.strip()
+    if not room_code:
+        return {"ok": False, "error": "room_code_required"}
+    result = database.set_room_goal(room_code, payload.goal_minutes)
+    return {"ok": True, **result}
+
+
+@app.get("/rooms/{room_code}/study")
+async def get_room_study(room_code: str) -> dict:
+    """단체방 공부 현황 조회"""
+    study = database.get_room_study(room_code)
+    return {"ok": True, **study}
 
 
 @app.get("/health")
@@ -124,6 +214,13 @@ async def disconnect(sid):
         members.pop(sid, None)
         if not members:
             ROOM_MEMBERS.pop(room_code, None)
+
+        # 공부 상태에서도 제거
+        statuses = ROOM_STUDY_STATUS.get(room_code, {})
+        statuses.pop(sid, None)
+        if not statuses:
+            ROOM_STUDY_STATUS.pop(room_code, None)
+            ROOM_STUDY_TIMER.pop(room_code, None)
 
         await sio.emit(
             "member_left",
@@ -186,6 +283,11 @@ async def join_room(sid, data):
     }
     members[sid] = nickname
 
+    # 공부 상태 초기화 (참가 시 studying 상태로 시작)
+    statuses = ROOM_STUDY_STATUS.setdefault(room_code, {})
+    statuses[sid] = "studying"
+    ROOM_STUDY_TIMER.setdefault(room_code, {"last_tick": _time.time(), "accumulated": 0})
+
     await sio.emit(
         "member_joined",
         {
@@ -206,6 +308,16 @@ async def join_room(sid, data):
         },
         room=room_code,
     )
+
+    # 현재 공부 현황을 참가한 클라이언트에게 즉시 전송
+    study_data = database.get_room_study(room_code)
+    all_studying = all(statuses.get(s) == "studying" for s in members)
+    await sio.emit("room_study_progress", {
+        "room_code": room_code,
+        "study_seconds": study_data["study_seconds"],
+        "goal_minutes": study_data["goal_minutes"],
+        "all_studying": all_studying,
+    }, to=sid)
 
     print(
         f"[join_room] sid={sid} nickname={nickname} "
@@ -293,6 +405,42 @@ async def audio_toggle(sid, data):
         f"[audio_toggle] sid={sid} room={info['room_code']} "
         f"payload={payload}"
     )
+
+
+@sio.event
+async def study_status(sid, data):
+    """클라이언트의 공부 상태 업데이트
+
+    data: {"status": "studying"|"paused"|"off_task"}
+    모든 참가자가 studying 상태일 때만 공부 시간이 진행됩니다.
+    """
+    info = SID_INFO.get(sid)
+    if not info:
+        return
+
+    room_code = info["room_code"]
+    status = data.get("status", "studying")
+    if status not in ("studying", "paused", "off_task"):
+        status = "studying"
+
+    statuses = ROOM_STUDY_STATUS.setdefault(room_code, {})
+    prev_status = statuses.get(sid)
+    statuses[sid] = status
+
+    # 상태가 변경되지 않았으면 브로드캐스트/로그 생략
+    if prev_status == status:
+        return
+
+    # 상태 변경을 모든 참가자에게 알림
+    members = ROOM_MEMBERS.get(room_code, {})
+    all_studying = all(statuses.get(s) == "studying" for s in members)
+    await sio.emit("room_study_status", {
+        "room_code": room_code,
+        "all_studying": all_studying,
+        "member_statuses": {members.get(s, "unknown"): statuses.get(s, "studying") for s in members},
+    }, room=room_code)
+
+    print(f"[study_status] sid={sid} room={room_code} status={prev_status}->{status}")
 
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

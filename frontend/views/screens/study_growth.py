@@ -30,13 +30,14 @@ class StudyGrowthMixin:
         char_name = char.get("name")
         char_id = char.get("id")
         char_growth = int(char.get("growth", 0))
+        breed = char.get("breed") or char_name
 
-        if not char_name or not isinstance(char_name, str):
+        if not breed or not isinstance(breed, str):
             return chars, -1, None, None, 0, {}
 
         ctype = get_stage_name_from_growth(char_growth)
         anim_sets = load_character_animation_sets(
-            char_name, ctype, target_w=target_w,
+            breed, ctype, target_w=target_w,
             anim_names=("happy", "tail", "tear"),
             tear_fallback_to_sad=tear_fallback,
         )
@@ -44,10 +45,14 @@ class StudyGrowthMixin:
 
     def _update_growth_widgets(self, progress_widget, label_widget, growth):
         growth_percent, growth_ratio = get_stage_progress(growth)
+        stage_name = get_stage_name_from_growth(growth)
+        stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(stage_name, stage_name)
+        # 소수점 둘째자리까지 계산
+        detailed_percent = growth_ratio * 100
         if progress_widget is not None:
             progress_widget.set(growth_ratio)
         if label_widget is not None:
-            label_widget.configure(text=f"{growth_percent}%")
+            label_widget.configure(text=f"{stage_text} / 성장률: {detailed_percent:.2f}%")
         return growth_percent, growth_ratio
 
     def _save_study_minutes(self, mode, elapsed_seconds):

@@ -85,8 +85,51 @@ class GroupScreenMixin:
             ).pack(pady=48)
             return
 
+        # 서버에서 공부 현황 조회 (비동기)
+        self._room_study_cache = {}
         for room in rooms:
             self._add_room_item(room["id"], room["name"], room["room_code"])
+        # 서버에서 각 방의 공부 시간 정보를 비동기로 가져와 표시
+        self._fetch_room_study_info(rooms)
+
+    def _fetch_room_study_info(self, rooms):
+        """서버에서 각 방의 공부 현황을 비동기로 조회하여 라벨 업데이트."""
+        import urllib.request
+        import json
+        import threading
+
+        def _worker():
+            for room in rooms:
+                try:
+                    url = f"{self.args.server}/rooms/{room['room_code']}/study"
+                    req = urllib.request.Request(url, method="GET")
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        result = json.loads(resp.read().decode("utf-8"))
+                    if result.get("ok", False):
+                        self._room_study_cache[room["room_code"]] = {
+                            "study_seconds": result.get("study_seconds", 0),
+                            "goal_minutes": result.get("goal_minutes", 0),
+                        }
+                except Exception:
+                    pass
+            # UI 업데이트는 메인 스레드에서
+            self.root.after(0, self._update_room_study_labels)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _update_room_study_labels(self):
+        """캐시된 공부 현황으로 방 목록 아이템의 시간 라벨을 업데이트."""
+        for rc, data in self._room_study_cache.items():
+            lbl = getattr(self, f"_room_study_lbl_{rc}", None)
+            if lbl is not None:
+                ss = data.get("study_seconds", 0)
+                gm = data.get("goal_minutes", 0)
+                s_h, s_rem = divmod(ss, 3600)
+                s_m, s_s = divmod(s_rem, 60)
+                g_total = gm * 60
+                g_h, g_rem = divmod(g_total, 3600)
+                g_m, g_s = divmod(g_rem, 60)
+                lbl.configure(text=f"{s_h:02d}:{s_m:02d}:{s_s:02d} / {g_h:02d}:{g_m:02d}:{g_s:02d}")
 
     def _add_room_item(self, room_id: int, name: str, room_code: str):
         enter_fn = lambda rc=room_code, n=name: self._on_group_list_room_click(n, rc)
@@ -113,6 +156,17 @@ class GroupScreenMixin:
         )
         name_lbl.pack(side="left", padx=16)
         name_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
+
+        # 공부 시간 / 목표 시간 표시 (서버 조회 후 업데이트)
+        study_lbl = ctk.CTkLabel(
+            item,
+            text="--:--:-- / --:--:--",
+            font=self._make_font(11),
+            text_color=self.theme["text_muted"],
+        )
+        study_lbl.pack(side="left", padx=(8, 0))
+        study_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
+        setattr(self, f"_room_study_lbl_{room_code}", study_lbl)
 
         delete_btn = ctk.CTkButton(
             item,
@@ -326,6 +380,9 @@ class GroupScreenMixin:
                 }
                 self.create_error_label.configure(text=err_map.get(result.get("error", ""), "생성에 실패했습니다."))
                 return
+            # 새 방 생성 성공: 로컈 daily_goal 초기화
+            from services.study_time import clear_daily_goal
+            clear_daily_goal(code)
             room_manager.add_room(name, code, result["id"])
             self.show_screen(GROUP_LIST)
 
@@ -362,6 +419,10 @@ class GroupScreenMixin:
         for wrap in (getattr(self, "_join_wrap", None), getattr(self, "_create_wrap", None)):
             if wrap is not None and wrap.winfo_ismapped():
                 return wrap
+        # 캐릭터 생성 화면일 때
+        char_create = getattr(self, "screen_char_create", None)
+        if char_create is not None and char_create.winfo_ismapped():
+            return char_create
         return None
 
     def _shift_form_left(self):

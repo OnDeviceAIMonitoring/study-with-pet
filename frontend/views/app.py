@@ -100,6 +100,12 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self._pending_group_room = None
         self._selected_char = None
 
+        # 서버 동기화 상태 (단체방 공부 시간)
+        self._group_server_study_seconds = 0
+        self._group_server_goal_minutes = 0
+        self._group_server_all_studying = True
+        self._group_member_statuses = {}
+
         # 단체방 왼쪽 캐릭터 오버레이 상태
         self._group_char_frames = []
         self._group_char_frame_idx = 0
@@ -434,6 +440,13 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 overlay = Image.new("RGBA", pil_rgba.size, (0, 0, 0, 0))
                 overlay.paste(g, (gx, gy))
                 pil = Image.alpha_composite(pil_rgba, overlay).convert("RGB")
+            # 목표 달성 시 노란색 반짝임 오버레이
+            if getattr(self, '_personal_goal_completed', False):
+                self._personal_gold_flash_counter = getattr(self, '_personal_gold_flash_counter', 0) + 1
+                if self._personal_gold_flash_counter % 2 == 0:
+                    pil_rgba = pil.convert("RGBA")
+                    gold = Image.new("RGBA", pil_rgba.size, (255, 215, 0, 35))
+                    pil = Image.alpha_composite(pil_rgba, gold).convert("RGB")
             ctk_img = ctk.CTkImage(light_image=pil, dark_image=pil, size=pil.size)
             self.img_label.configure(image=ctk_img)
 
@@ -479,6 +492,13 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 overlay = Image.new("RGBA", pil_rgba.size, (0, 0, 0, 0))
                 overlay.paste(g, (gx, gy))
                 pil = Image.alpha_composite(pil_rgba, overlay).convert("RGB")
+            # 목표 달성 시 노란색 반짝임 오버레이 (단체방)
+            if getattr(self, '_group_goal_completed', False):
+                self._group_gold_flash_counter = getattr(self, '_group_gold_flash_counter', 0) + 1
+                if self._group_gold_flash_counter % 2 == 0:
+                    pil_rgba = pil.convert("RGBA")
+                    gold = Image.new("RGBA", pil_rgba.size, (255, 215, 0, 35))
+                    pil = Image.alpha_composite(pil_rgba, gold).convert("RGB")
             ctk_img = ctk.CTkImage(light_image=pil, dark_image=pil, size=pil.size)
             self.group_img_label.configure(image=ctk_img)
 
