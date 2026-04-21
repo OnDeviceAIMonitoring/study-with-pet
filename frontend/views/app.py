@@ -46,7 +46,7 @@ from .screens import (
 from .states import CameraState, PersonalStudyState, GroupStudyState, NavigationState
 from .screen_manager import ScreenManager
 from .onscreen_keyboard import OnScreenKeyboard
-from .layouts import compose_grid, compose_group
+from .layouts import compose_grid, compose_group, compose_others_column
 from .frame_utils import build_waiting_frame, draw_rect_border, CAMERA_BORDER_BGR
 
 
@@ -448,34 +448,18 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 local_frame = None if self.latest_frame is None else self.latest_frame.copy()
                 frame_map_copy = dict(self.frame_map)
 
+            # 메인 카메라 — 개인방과 동일하게 직접 표시
             if local_frame is None:
-                placeholder = build_waiting_frame(self.args.main_width, self.args.main_height)
-                frame_map_copy[self.args.name] = {
-                    "frame": placeholder,
-                    "is_main": True,
-                    "updated_at": datetime.now().isoformat(timespec="seconds"),
-                }
+                main_canvas = build_waiting_frame(self.args.canvas_width, self.args.canvas_height)
             else:
-                frame_map_copy[self.args.name] = {
-                    "frame": local_frame,
-                    "is_main": True,
-                    "updated_at": datetime.now().isoformat(timespec="seconds"),
-                }
+                main_canvas = local_frame
 
-            canvas = compose_group(
-                frame_map_copy,
-                self.args.canvas_width,
-                self.args.canvas_height,
-                self.args.left_reserved_width,
-                self.args.main_width,
-                self.args.main_height,
-                self.args.sub_width,
-                self.args.sub_height,
-            )
+            draw_rect_border(main_canvas, color=CAMERA_BORDER_BGR, thickness=4)
+
             try:
-                rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+                rgb = cv2.cvtColor(main_canvas, cv2.COLOR_BGR2RGB)
             except Exception:
-                rgb = canvas[:, :, ::-1]
+                rgb = main_canvas[:, :, ::-1]
             pil = Image.fromarray(rgb)
             # 졸음 감지 시 angry_goblin 오버레이 합성 (단체방)
             goblin_frames = getattr(self, '_goblin_frames', [])
@@ -491,6 +475,32 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             img_tk = ImageTk.PhotoImage(pil)
             self.group_img_label.image = img_tk
             self.group_img_label.configure(image=img_tk)
+
+            # 다른 참가자 사이드 컬럼
+            if hasattr(self, "_group_others_label"):
+                hex_ivory = self.theme["ivory"].lstrip("#")
+                r, g, b = int(hex_ivory[0:2], 16), int(hex_ivory[2:4], 16), int(hex_ivory[4:6], 16)
+                ivory_bgr = (b, g, r)
+                others = sorted(
+                    [(k, v) for k, v in frame_map_copy.items()],
+                    key=lambda item: item[0].lower(),
+                )
+                others_canvas = compose_others_column(
+                    others,
+                    self.args.sub_width,
+                    self.args.canvas_height,
+                    self.args.sub_width,
+                    self.args.sub_height,
+                    bg_color=ivory_bgr,
+                )
+                try:
+                    others_rgb = cv2.cvtColor(others_canvas, cv2.COLOR_BGR2RGB)
+                except Exception:
+                    others_rgb = others_canvas[:, :, ::-1]
+                others_pil = Image.fromarray(others_rgb)
+                others_tk = ImageTk.PhotoImage(others_pil)
+                self._group_others_label.image = others_tk
+                self._group_others_label.configure(image=others_tk)
 
     # ──────────────────────────────────────────────
     # REST API 호출

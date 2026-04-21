@@ -16,24 +16,27 @@ class GroupStudyMixin:
 
     def _build_screen_group(self):
         frame = self.screen_group
+        frame.configure(fg_color=self.theme["ivory"])
+
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
         self.group_screen_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18), text_color=self.theme["text"])
         self.group_screen_title.pack(side="left", padx=16)
+
+        # 공부시간 라벨 추가
+        self._group_study_time_label = ctk.CTkLabel(top, text="공부시간: 00:00", font=self._make_font(14), text_color=self.theme["text_muted"])
+        self._group_study_time_label.pack(side="left", padx=20)
+
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_group_back,
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
-        self.group_img_label = ctk.CTkLabel(frame, text="")
-        self.group_img_label.pack(fill="both", expand=True, padx=10, pady=10)
+        body = ctk.CTkFrame(frame, fg_color=self.theme["ivory"])
+        body.pack(fill="both", expand=True)
 
-        # 개인방과 동일한 캐릭터 UI
-        char_area = ctk.CTkFrame(frame, fg_color="transparent")
-        char_area.place(relx=0.05, rely=0.7, anchor="w")
-        self._group_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
-        self._group_char_label.pack()
-        self._group_char_growth = ctk.CTkProgressBar(char_area, width=120)
-        self._group_char_growth.pack(pady=(2, 0))
+        # 메인 카메라 (개인방과 동일하게 frame에 직접 표시)
+        self.group_img_label = ctk.CTkLabel(body, text="")
+        self.group_img_label.pack(fill="both", expand=True, padx=10, pady=10)
 
         # angry_goblin 오버레이 상태 (졸음 감지 시 카메라 위에 합성)
         self._group_goblin_frame_idx = 0
@@ -41,6 +44,43 @@ class GroupStudyMixin:
         self._group_goblin_anim_running = False
         self._group_goblin_beep_counter = 0
         self._load_goblin_frames()
+
+
+        # 오른쪽: 다른 참가자 컬럼 (오버레이)
+        self._group_others_label = ctk.CTkLabel(
+            body, text="",
+            fg_color=self.theme["ivory"],
+            width=self.args.sub_width,
+        )
+        self._group_others_label.place(relx=1.0, rely=0.5, anchor="e", relheight=1.0)
+
+        # 개인방과 동일한 캐릭터 UI
+        char_area = ctk.CTkFrame(frame, fg_color="transparent")
+        char_area.place(relx=0.05, rely=0.7, anchor="w")
+        self._group_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
+        self._group_char_label.pack()
+        self._group_char_growth = ctk.CTkProgressBar(
+            char_area,
+            width=120,
+            fg_color=self.theme["white"],
+            progress_color=self.theme["pink"],
+        )
+        self._group_char_growth.pack(pady=(2, 0))
+
+        # 타이머 시작
+        self._start_group_study_session()
+        self._update_group_study_timer()
+
+    def _update_group_study_timer(self):
+        """1초마다 타이머 갱신"""
+        if not getattr(self, 'group_study_state', None) or not getattr(self.group_study_state, 'running', False):
+            return
+        self.group_study_state.elapsed_seconds = int(time.time() - self.group_study_state.start_time)
+        minutes = self.group_study_state.elapsed_seconds // 60
+        seconds = self.group_study_state.elapsed_seconds % 60
+        if hasattr(self, '_group_study_time_label'):
+            self._group_study_time_label.configure(text=f"공부시간: {minutes:02d}:{seconds:02d}")
+        self.root.after(1000, self._update_group_study_timer)
 
     # ── 세션 시작/종료 ───────────────────────────────────────
 

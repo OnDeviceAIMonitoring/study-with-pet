@@ -88,7 +88,7 @@ class PersonalStudyMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="개인 공부 - 카메라", anchor="w", font=self._make_font(18), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkLabel(top, text="개인 공부", anchor="w", font=self._make_font(18), text_color=self.theme["text"]).pack(side="left", padx=16)
 
         # 공부 시간 표시
         self._study_time_label = ctk.CTkLabel(top, text="공부시간: 00:00", font=self._make_font(14), text_color=self.theme["text_muted"])
@@ -115,7 +115,7 @@ class PersonalStudyMixin:
         self._camera_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
         self._camera_char_label.pack()
         self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14, "bold"), text_color=self.theme["text"])
-        self._camera_char_growth = ctk.CTkProgressBar(char_area, width=120)
+        self._camera_char_growth = ctk.CTkProgressBar(char_area, width=120, fg_color=self.theme["white"], progress_color=self.theme["pink"])
         self._camera_char_growth.pack(pady=(2, 0))
         self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10), text_color=self.theme["text_muted"])
 
