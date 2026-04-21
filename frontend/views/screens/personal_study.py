@@ -21,6 +21,20 @@ except ImportError:
 from config import MAIN
 from services.camera_signals import DEFAULT_ANIM
 from services.character_store import save_characters, touch_character
+import random as _random
+
+_ENCOURAGE_MSGS = [
+    "잘하고 있어!ꕤ",
+    "화이팅!♡",
+    "집중력 최고!★",
+    "대단해!ꕤ",
+    "이대로 계속 화이팅!♡",
+    "멋지다!★",
+    "조금만 더 힘내!♡",
+    "할 수 있어! 😊",
+]
+_ENCOURAGE_INTERVAL = 10.0   # 초 (warning 없이 이 시간 유지 시 표시)
+_ENCOURAGE_SHOW_SEC = 6.0     # 말풍선 표시 시간
 
 
 def _make_tone(freq, duration_ms, volume=0.5, sample_rate=22050):
@@ -144,6 +158,24 @@ class PersonalStudyMixin:
         self._camera_char_growth.pack(pady=(2, 0))
         self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10), text_color=self.theme["text_muted"])
 
+        # 응원 말풍선 (캐릭터 위 → 위로 떠오르는 연출)
+        self._bubble_frame = ctk.CTkFrame(
+            frame, fg_color=self.theme["white"],
+            border_width=2, border_color="black",
+            corner_radius=4,
+        )
+        self._bubble_label = ctk.CTkLabel(
+            self._bubble_frame, text="", font=self._make_font(14),
+            text_color=self.theme["text"],
+            fg_color="transparent",
+        )
+        self._bubble_label.pack(padx=14, pady=6)
+        self._bubble_visible = False
+        self._last_warning_time = time.time()
+        self._bubble_hide_time = 0.0
+        self._bubble_y = 0.0      # 현재 y 비율 (rely)
+        self._bubble_target_y = 0.0
+
         self._camera_char_frames = []
         self._camera_char_frame_idx = 0
         self._camera_char_anim_running = False
@@ -165,6 +197,7 @@ class PersonalStudyMixin:
         # 고블린 오버레이 애니메이션 시작 (200ms)
         self._goblin_anim_running = True
         self._goblin_anim_tick()
+        self._encourage_bubble_tick()
 
     # ── 캐릭터 로드 / 애니메이션 ─────────────────────────────
 
@@ -301,6 +334,46 @@ class PersonalStudyMixin:
                 self._goblin_visible = False
 
         self.root.after(200, self._goblin_anim_tick)
+
+    def _encourage_bubble_tick(self):
+        """200ms마다 응원 말풍선 표시/애니메이션 처리."""
+        if not getattr(self, '_goblin_anim_running', False):
+            return
+
+        with self._camera_signal_lock:
+            current_signal = self._camera_current_signal
+
+        _now = time.time()
+
+        # 경고 상태일 때 말풍선 숨기기 & 타이머 리셋
+        if current_signal in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS"):
+            self._last_warning_time = _now
+            if self._bubble_visible:
+                self._bubble_frame.place_forget()
+                self._bubble_visible = False
+
+        # 일정 시간 경고 없이 집중하면 응원 말풍선 표시
+        if not self._bubble_visible and (_now - self._last_warning_time) >= _ENCOURAGE_INTERVAL:
+            msg = _random.choice(_ENCOURAGE_MSGS)
+            self._bubble_label.configure(text=f"  {msg}  ")
+            self._bubble_y = 0.62
+            self._bubble_target_y = 0.08
+            self._bubble_frame.place(relx=0.05, rely=self._bubble_y, anchor="sw")
+            self._bubble_frame.lift()
+            self._bubble_visible = True
+            self._bubble_hide_time = _now + _ENCOURAGE_SHOW_SEC
+            self._last_warning_time = _now
+
+        # 위로 떠오르는 애니메이션 (200ms 틱마다)
+        if self._bubble_visible:
+            if self._bubble_y > self._bubble_target_y:
+                self._bubble_y -= 0.015
+                self._bubble_frame.place_configure(rely=max(self._bubble_y, self._bubble_target_y))
+            if _now >= self._bubble_hide_time:
+                self._bubble_frame.place_forget()
+                self._bubble_visible = False
+
+        self.root.after(200, self._encourage_bubble_tick)
 
     def _camera_char_anim_update(self):
         if not self._camera_char_anim_running:
