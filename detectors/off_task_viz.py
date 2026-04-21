@@ -116,9 +116,11 @@ def draw_off_task_ui(frame, status, cfg, viz_cfg):
     dy = 20
     _put(f"HandVis: {status['has_hand_visible']}  Start: {status['study_started']}",
          alert if status["status_no_hands"] else ok, 0.42)
-    _put(f"Smile+Talk: {status['status_smile_talking']} "
-         f"(S:{status['smile_ratio']:.1f}, T:{status['mouth_open_ratio']:.2f})",
-         alert if status["status_smile_talking"] else ok, 0.42)
+
+    smile_talk = status.get("status_smile_talking", False)
+    yawn_like = status.get("yawn_like", False)
+    _put(f"SmileTalk: {smile_talk} YawnLike: {yawn_like}",
+         alert if smile_talk else ok, 0.42)
     _put(f"TalkDet: {status['smile_talk_detect_sec']:.1f}s/"
          f"{status['smile_talk_window_sec']:.1f}s Stdev:{status['talk_stdev']:.3f}",
          alert if status["status_smile_talking"] else ok, 0.42)

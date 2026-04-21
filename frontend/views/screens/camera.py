@@ -29,6 +29,66 @@ except ImportError:
     print("[screen_camera] WARNING: detectors not found, signal detection disabled")
 
 
+_DEBUG_PANEL = True  # False로 바꾸면 디버그 패널 숨김
+
+def _draw_debug_panel(frame, detectors_list, top_signal, fps):
+    """우측 상단에 모든 detector 상태를 표시하는 디버그 패널"""
+    if not _DEBUG_PANEL:
+        return
+    h, w = frame.shape[:2]
+    G, R = (0, 255, 0), (0, 0, 255)  # 초록 / 빨강
+    sig_color = R if top_signal else G
+    lines = [(f"FPS: {fps:.1f}  Signal: {top_signal or 'None'}", sig_color)]
+
+    for det in detectors_list:
+        dname = det.name
+        if dname == "drowsiness":
+            ear = getattr(det, '_ear', 0)
+            th = getattr(det, '_ear_thresh', 0)
+            alarm = getattr(det, 'alarm_on', False)
+            hd = getattr(det, 'head_down_drowsy', False)
+            active = alarm or hd
+            lines.append((f"[Sleep] EAR:{ear:.2f}/{th:.2f} alarm:{alarm} hd:{hd}", R if active else G))
+        elif dname == "fidget":
+            ratio = getattr(det, '_ratio', 0)
+            burst = getattr(det, '_burst_count', 0)
+            alert = getattr(det, 'fidget_alert', False)
+            lines.append((f"[Fidget] E:{ratio:.1f}x burst:{burst} alert:{alert}", R if alert else G))
+        elif dname == "heart":
+            detected = getattr(det, '_detected', False)
+            lines.append((f"[Heart] detected:{detected}", (255, 100, 255) if detected else G))
+        elif dname == "off_task":
+            st = getattr(det, '_status', None) or {}
+            ph_r = st.get('phone_ratio', 0)
+            ph_a = st.get('phone_alert', False)
+            yaw_r = st.get('yaw_ratio', 0)
+            yaw_a = st.get('yaw_alert', False)
+            st_alert = st.get('status_smile_talking', False)
+            head_tracker = st.get('status_tracker_out', False)
+            lines.append((f"[OffTask] ph:{ph_r:.0%}({ph_a})", R if ph_a else G))
+            lines.append((f"          yaw:{yaw_r:.0%}({yaw_a})", R if yaw_a else G))
+            lines.append((f"          smile&talk:{st_alert} st:{st.get('smile_talk_detect_sec', 0):.1f}s/{st.get('smile_talk_window_sec', 0):.1f}s", R if st_alert else G))
+            lines.append((f"          head_tracker:{head_tracker}", R if head_tracker else G))
+
+    # 패널 크기 계산
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    sc, th = 0.4, 1
+    line_h = 18
+    max_tw = max(cv2.getTextSize(t, font, sc, th)[0][0] for t, _ in lines)
+    pw, ph_panel = max_tw + 16, len(lines) * line_h + 10
+    px = w - pw - 5
+    py = h - ph_panel - 150
+
+    # 반투명 배경
+    overlay = frame[py:py+ph_panel, px:px+pw].copy()
+    cv2.rectangle(frame, (px, py), (px+pw, py+ph_panel), (0, 0, 0), -1)
+    cv2.addWeighted(frame[py:py+ph_panel, px:px+pw], 0.7, overlay, 0.3, 0,
+                    frame[py:py+ph_panel, px:px+pw])
+
+    for i, (text, color) in enumerate(lines):
+        cv2.putText(frame, text, (px+6, py + 14 + i*line_h), font, sc, color, th)
+
+
 class CameraScreenMixin:
 
     def start_camera(self, camera_index: int = 0):
@@ -61,6 +121,8 @@ class CameraScreenMixin:
                 if not ret:
                     time.sleep(0.03)
                     continue
+                # 거울처럼 좌우 반전
+                frame = cv2.flip(frame, 1)
                 with shared["frame_lock"]:
                     shared["frame"] = frame
             try:
@@ -237,6 +299,8 @@ class CameraScreenMixin:
                         det.draw_hud(frame)
                     except Exception:
                         pass
+
+                _draw_debug_panel(frame, detectors_list, top_signal, fps)
 
                 is_warning = top_signal in ("DROWSINESS", "LOW_FOCUS", "OFF_TASK")
                 if is_warning:

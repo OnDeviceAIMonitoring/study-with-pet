@@ -16,6 +16,17 @@ import numpy as np
 import cv2
 
 
+CAMERA_BORDER_BGR = (200, 217, 227)  # BGR for #E3D9C8
+
+
+
+def draw_rect_border(frame: np.ndarray, color=CAMERA_BORDER_BGR, thickness: int = 3) -> np.ndarray:
+    """프레임 외곽에 일반 사각형 보더를 그립니다."""
+    h, w = frame.shape[:2]
+    cv2.rectangle(frame, (0, 0), (w - 1, h - 1), color, thickness)
+    return frame
+
+
 def decode_frame(jpeg_base64: str):
     """Base64로 인코딩된 JPEG를 디코딩하여 BGR 프레임을 반환합니다."""
     raw = base64.b64decode(jpeg_base64)
@@ -46,6 +57,8 @@ def draw_label(frame: np.ndarray, nickname: str, is_main: bool, updated_at: str)
     label = nickname
     if is_main:
         label += " [MAIN]"
+
+    draw_rect_border(frame, color=CAMERA_BORDER_BGR, thickness=3)
 
     cv2.rectangle(frame, (0, 0), (frame.shape[1], 34), (25, 25, 25), -1)
     cv2.putText(frame, label, (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)

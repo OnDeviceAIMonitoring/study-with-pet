@@ -46,10 +46,25 @@ from .screens import (
 from .states import CameraState, PersonalStudyState, GroupStudyState, NavigationState
 from .screen_manager import ScreenManager
 from .layouts import compose_grid, compose_group
-from .frame_utils import build_waiting_frame
+from .frame_utils import build_waiting_frame, draw_rect_border, CAMERA_BORDER_BGR
 
 
 class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin, DailyGoalTimeSettingScreenMixin):
+
+    THEME_COZY_STUDY = {
+        "ivory": "#F6F2EA",
+        "white": "#FFFDF8",
+        "beige": "#F0E8DC",
+        "sand": "#E3D9C8",
+        "pink": "#F9DFDF",
+        "pink_hover": "#E6B6B6",
+        "gray": "#E8E6E3",
+        "gray_hover": "#DAD6D1",
+        "text": "#2F2A24",
+        "text_muted": "#75685C",
+        "error": "#C75B4B",
+        "on_primary": "#2F2A24",
+    }
 
     # ──────────────────────────────────────────────
     # 초기화
@@ -102,8 +117,8 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self._group_study_elapsed_seconds = 0
         self._group_study_accumulated_points = 0
 
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("dark-blue")
+        ctk.set_appearance_mode("light")
+        ctk.set_default_color_theme("green")
 
         self.root = ctk.CTk()
         self.root.title(self.args.window_title)
@@ -146,6 +161,9 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self.screen_char_select = ctk.CTkFrame(self.container)
         self.screen_daily_goal = ctk.CTkFrame(self.container)
         self.screen_camera = ctk.CTkFrame(self.container)
+
+        self.theme = dict(self.THEME_COZY_STUDY)
+        self._apply_theme_to_root()
 
         self._screen_char_legacy_page = 0
         self._screen_char_list_page = 0
@@ -253,6 +271,90 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
 
         self.show_screen(MAIN)
 
+    def _apply_theme_to_root(self):
+        bg = self.theme["ivory"]
+        self.root.configure(fg_color=bg)
+        self.container.configure(fg_color=bg)
+        screens = [
+            self.screen_main,
+            self.screen_char_legacy,
+            self.screen_char_list,
+            self.screen_char_create,
+            self.screen_group,
+            self.screen_group_list,
+            self.screen_group_join,
+            self.screen_group_create,
+            self.screen_char_select,
+            self.screen_daily_goal,
+            self.screen_camera,
+        ]
+        for screen in screens:
+            screen.configure(fg_color=bg)
+
+    def _topbar_style(self):
+        return {
+            "fg_color": self.theme["beige"],
+            "corner_radius": 12,
+            "border_width": 1,
+            "border_color": self.theme["sand"],
+        }
+
+    def _surface_style(self):
+        return {
+            "fg_color": self.theme["white"],
+            "corner_radius": 12,
+            "border_width": 1,
+            "border_color": self.theme["sand"],
+        }
+
+    def _primary_button_style(self):
+        return {
+            "fg_color": self.theme["pink"],
+            "hover_color": self.theme["pink_hover"],
+            "text_color": self.theme["on_primary"],
+        }
+
+    def _secondary_button_style(self):
+        return {
+            "fg_color": self.theme["pink"],
+            "hover_color": self.theme["pink_hover"],
+            "text_color": self.theme["on_primary"],
+        }
+
+    def _accent_button_style(self):
+        return {
+            "fg_color": self.theme["beige"],
+            "hover_color": self.theme["sand"],
+            "text_color": self.theme["text"],
+        }
+
+    def _exit_button_style(self):
+        return {
+            "fg_color": "#E8E6E3",
+            "hover_color": "#DAD6D1",
+            "text_color": self.theme["text"],
+            "border_width": 1,
+            "border_color": self.theme["sand"],
+        }
+
+    def _error_text_style(self):
+        return {
+            "text_color": self.theme["error"],
+        }
+
+    def _muted_text_style(self):
+        return {
+            "text_color": self.theme["text_muted"],
+        }
+
+    def _entry_style(self):
+        return {
+            "fg_color": self.theme["white"],
+            "border_color": self.theme["sand"],
+            "text_color": self.theme["text"],
+            "placeholder_text_color": self.theme["text_muted"],
+        }
+
     # ──────────────────────────────────────────────
     # 슬라이드 라우팅
     # ──────────────────────────────────────────────
@@ -294,12 +396,17 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 frame = None if self.latest_frame is None else self.latest_frame.copy()
             if frame is None:
                 canvas = build_waiting_frame(self.args.canvas_width, self.args.canvas_height)
-                rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
             else:
-                try:
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                except Exception:
-                    rgb = frame[:, :, ::-1]
+                canvas = frame
+
+
+            # 기존대로 사각형 프레임에 일반 사각형 테두리 적용
+            draw_rect_border(canvas, color=CAMERA_BORDER_BGR, thickness=4)
+
+            try:
+                rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+            except Exception:
+                rgb = canvas[:, :, ::-1]
             pil = Image.fromarray(rgb)
             # 졸음 감지 시 angry_goblin 오버레이 합성 (알파 투명)
             goblin_frames = getattr(self, '_goblin_frames', [])
@@ -404,7 +511,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
 
         dlg = tk.Toplevel(self.root)
         dlg.overrideredirect(True)
-        dlg.configure(bg="#000000")
+        dlg.configure(bg=self.theme["beige"])
         dlg.attributes("-topmost", True)
         dlg.transient(self.root)
 
@@ -418,14 +525,19 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         y = root_y + (root_h - height) // 2
         dlg.geometry(f"{width}x{height}+{x}+{y}")
 
-        box = tk.Frame(dlg, bg="#000000", highlightthickness=1, highlightbackground="#2a2a2a")
+        box = tk.Frame(
+            dlg,
+            bg=self.theme["white"],
+            highlightthickness=1,
+            highlightbackground=self.theme["sand"],
+        )
         box.pack(fill="both", expand=True)
 
-        title_lbl = tk.Label(box, text=title, fg="#f2f2f2", bg="#000000",
+        title_lbl = tk.Label(box, text=title, fg=self.theme["text"], bg=self.theme["white"],
                              font=self._make_font(13, "bold"))
         title_lbl.pack(pady=(18, 6))
 
-        msg_lbl = tk.Label(box, text=message, fg="#d6d6d6", bg="#000000",
+        msg_lbl = tk.Label(box, text=message, fg=self.theme["text_muted"], bg=self.theme["white"],
                            font=self._make_font(12), wraplength=280, justify="center")
         msg_lbl.pack(pady=(0, 14), padx=12)
 
