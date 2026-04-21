@@ -11,7 +11,7 @@ from PIL import Image
 import customtkinter as ctk
 
 from config import MAIN, SELECT_CHAR, CREATE_CHAR
-from services.character_growth import get_stage_name_from_growth
+from services.character_growth import STAGE_UNIT, get_stage_name_from_growth
 from services.character_store import (
     find_character_index,
     load_characters,
@@ -34,7 +34,7 @@ class CharScreenMixin:
         """
         char_ref: characters.json에서의 id 또는 인덱스
         add_points: 추가할 성장 포인트(초 단위로 30초당 1포인트)
-        성장도는 누적 포인트로 저장 (0~119: baby, 120~239: adult, 240+: crown)
+        성장도는 누적 포인트로 저장 (단계 기준: STAGE_UNIT 포인트)
         단계: baby → adult → crown
         """
         chars = load_characters(sort_by_last_accessed=False)
@@ -192,14 +192,14 @@ class CharScreenMixin:
 
                 ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
                 growth_point = int(char.get('growth', 0))
-                stage_idx = min(growth_point // 120, 2)
+                stage_idx = min(growth_point // STAGE_UNIT, 2)
                 if stage_idx >= 2:
                     growth_percent = 100
                     prog_value = 1.0
                 else:
-                    growth_in_stage = growth_point - (stage_idx * 120)
-                    growth_percent = min(100, int(growth_in_stage * 100 / 120))
-                    prog_value = growth_in_stage / 120
+                    growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
+                    growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
+                    prog_value = growth_in_stage / STAGE_UNIT
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
                 prog.set(prog_value)
@@ -318,14 +318,14 @@ class CharScreenMixin:
 
             ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
             growth_point = int(char.get('growth', 0))
-            stage_idx = min(growth_point // 120, 2)
+            stage_idx = min(growth_point // STAGE_UNIT, 2)
             if stage_idx >= 2:
                 growth_percent = 100
                 prog_value = 1.0
             else:
-                growth_in_stage = growth_point - (stage_idx * 120)
-                growth_percent = min(100, int(growth_in_stage * 100 / 120))
-                prog_value = growth_in_stage / 120
+                growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
+                growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
+                prog_value = growth_in_stage / STAGE_UNIT
             ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
             prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
             prog.set(prog_value)
@@ -596,14 +596,14 @@ class CharScreenMixin:
 
                 ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
                 growth_point = int(char.get('growth', 0))
-                stage_idx = min(growth_point // 120, 2)
+                stage_idx = min(growth_point // STAGE_UNIT, 2)
                 if stage_idx >= 2:
                     growth_percent = 100
                     prog_value = 1.0
                 else:
-                    growth_in_stage = growth_point - (stage_idx * 120)
-                    growth_percent = min(100, int(growth_in_stage * 100 / 120))
-                    prog_value = growth_in_stage / 120
+                    growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
+                    growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
+                    prog_value = growth_in_stage / STAGE_UNIT
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
                 prog.set(prog_value)
