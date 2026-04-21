@@ -39,7 +39,7 @@ _LAYOUT_KO_SHIFT = [
 ]
 
 # 키보드 패널 폭 (px)
-KB_WIDTH = 380
+KB_WIDTH = 570
 
 
 class OnScreenKeyboard(ctk.CTkFrame):
@@ -74,30 +74,33 @@ class OnScreenKeyboard(ctk.CTkFrame):
 
         layout = self._get_layout()
 
+        # 세로 중앙 정렬을 위한 상단 스페이서
+        ctk.CTkFrame(self, fg_color="transparent", height=0).pack(expand=True)
+
         for row_keys in layout:
             row_frame = ctk.CTkFrame(self, fg_color="transparent")
-            row_frame.pack(pady=2, anchor="center")
+            row_frame.pack(pady=3, anchor="center")
 
             for key in row_keys:
                 if key == "SPACE":
-                    w, text = 140, " "
+                    w, text = 200, " "
                 elif key == "⌫":
-                    w, text = 44, "⌫"
+                    w, text = 56, "⌫"
                 elif key == "⇧":
-                    w, text = 44, "⇧"
+                    w, text = 56, "⇧"
                 elif key == "완료":
-                    w, text = 60, "완료"
+                    w, text = 76, "완료"
                 elif key == "한/영":
-                    w, text = 60, "한/영"
+                    w, text = 76, "한/영"
                 else:
-                    w, text = 32, key
+                    w, text = 48, key
 
                 btn = ctk.CTkButton(
                     row_frame,
                     text=text,
                     width=w,
-                    height=34,
-                    font=self._make_font(12),
+                    height=44,
+                    font=self._make_font(14),
                     fg_color=self._theme["white"],
                     hover_color=self._theme["sand"],
                     text_color=self._theme["text"],
@@ -106,8 +109,11 @@ class OnScreenKeyboard(ctk.CTkFrame):
                     corner_radius=6,
                     command=lambda k=key: self._on_key(k),
                 )
-                btn.pack(side="left", padx=1)
+                btn.pack(side="left", padx=2)
                 self._key_buttons.append(btn)
+
+        # 세로 중앙 정렬을 위한 하단 스페이서
+        ctk.CTkFrame(self, fg_color="transparent", height=0).pack(expand=True)
 
     def _on_key(self, key: str):
         """키 입력 처리"""
@@ -140,6 +146,9 @@ class OnScreenKeyboard(ctk.CTkFrame):
         # 클릭된 위젯이 키보드 내부인지 확인
         try:
             w = event.widget
+            # 파괴된 위젯(Shift/한영 전환으로 재생성된 버튼)은 무시
+            if not w.winfo_exists():
+                return
             while w is not None:
                 if w is self:
                     return  # 키보드 내부 클릭 → 무시
@@ -148,19 +157,22 @@ class OnScreenKeyboard(ctk.CTkFrame):
                     return
                 w = w.master
         except Exception:
-            pass
+            return  # 위젯 계층 탐색 실패 시 닫지 않음
         self.hide()
 
-    def show(self, target_entry):
-        """Entry 오른쪽 열에 키보드를 place()로 표시"""
+    def show(self, target_entry, parent=None):
+        """Entry 오른쪽 열에 키보드를 place()로 표시. parent가 주어지면 해당 프레임 기준 배치."""
         self._target_entry = target_entry
         self._shifted = False
         self._korean = False
         self._build_keys()
 
-        # place: 부모(container) 오른쪽에 고정, 세로 중앙
+        # place: 지정된 부모(또는 원래 부모) 오른쪽에 고정, 세로 중앙
         self.configure(width=KB_WIDTH)
-        self.place(relx=1.0, rely=0.5, anchor="e", relheight=0.92)
+        if parent is not None:
+            self.place(in_=parent, relx=1.0, rely=0.5, anchor="e", relheight=0.95)
+        else:
+            self.place(relx=1.0, rely=0.5, anchor="e", relheight=0.95)
         self.lift()  # 다른 위젯 위에 표시
 
         # 바깥 클릭 감지 바인딩

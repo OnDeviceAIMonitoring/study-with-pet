@@ -128,11 +128,12 @@ class GroupScreenMixin:
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
-        wrap = ctk.CTkFrame(frame, fg_color="transparent")
-        wrap.pack(fill="both", expand=True)
-        wrap.grid_columnconfigure(0, weight=1)
-        wrap.grid_rowconfigure(0, weight=1)
-        wrap.grid_rowconfigure(2, weight=1)
+        self._join_wrap = ctk.CTkFrame(frame, fg_color="transparent")
+        self._join_wrap.pack(fill="both", expand=True)
+        self._join_wrap.grid_columnconfigure(0, weight=1)
+        self._join_wrap.grid_rowconfigure(0, weight=1)
+        self._join_wrap.grid_rowconfigure(2, weight=1)
+        wrap = self._join_wrap
 
         self._join_form = ctk.CTkFrame(wrap, **self._surface_style())
         self._join_form.grid(row=1, column=0, padx=40, pady=20)
@@ -217,11 +218,12 @@ class GroupScreenMixin:
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
-        wrap = ctk.CTkFrame(frame, fg_color="transparent")
-        wrap.pack(fill="both", expand=True)
-        wrap.grid_columnconfigure(0, weight=1)
-        wrap.grid_rowconfigure(0, weight=1)
-        wrap.grid_rowconfigure(2, weight=1)
+        self._create_wrap = ctk.CTkFrame(frame, fg_color="transparent")
+        self._create_wrap.pack(fill="both", expand=True)
+        self._create_wrap.grid_columnconfigure(0, weight=1)
+        self._create_wrap.grid_rowconfigure(0, weight=1)
+        self._create_wrap.grid_rowconfigure(2, weight=1)
+        wrap = self._create_wrap
 
         self._create_form = ctk.CTkFrame(wrap, **self._surface_style())
         self._create_form.grid(row=1, column=0, padx=40, pady=20)
@@ -305,7 +307,9 @@ class GroupScreenMixin:
         # 현재 화면의 폼을 왼쪽으로 이동
         self._shift_form_left()
         kb._on_hide_callback = self._restore_form_center  # 바깥 클릭 닫힘 시 폼 복원
-        kb.show(entry)
+        # 현재 화면의 wrap(상단바 아래 영역)을 부모로 지정
+        parent_wrap = self._get_active_wrap()
+        kb.show(entry, parent=parent_wrap)
 
     def _hide_keyboard(self):
         """화상 키보드 숨기고 폼을 중앙으로 복원"""
@@ -314,11 +318,18 @@ class GroupScreenMixin:
             kb.hide()
         self._restore_form_center()
 
+    def _get_active_wrap(self):
+        """현재 표시 중인 화면의 wrap 프레임 반환"""
+        for wrap in (getattr(self, "_join_wrap", None), getattr(self, "_create_wrap", None)):
+            if wrap is not None and wrap.winfo_ismapped():
+                return wrap
+        return None
+
     def _shift_form_left(self):
         """키보드 표시 시 폼을 왼쪽으로 밀기"""
         for form in (getattr(self, "_join_form", None), getattr(self, "_create_form", None)):
             if form is not None and form.winfo_ismapped():
-                form.grid_configure(padx=(20, 0), sticky="w")
+                form.grid_configure(padx=(4, 0), sticky="w")
 
     def _restore_form_center(self):
         """키보드 숨김 시 폼을 중앙으로 복원"""
