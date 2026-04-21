@@ -166,6 +166,14 @@ class PersonalStudyMixin:
         self._study_time_label = ctk.CTkLabel(top, text=f"공부시간: 00:00:00 / {goal_str}", font=self._make_font(14), text_color=self.theme["text_muted"])
         self._study_time_label.pack(side="left", padx=20)
 
+        self._personal_pause_btn = ctk.CTkButton(
+            top, text="⏸ 일시정지", width=110, height=36,
+            font=self._make_font(14),
+            command=self._toggle_personal_pause,
+            **self._exit_button_style(),
+        )
+        self._personal_pause_btn.pack(side="right", padx=(0, 8), pady=0)
+
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_camera_back,
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
@@ -178,20 +186,6 @@ class PersonalStudyMixin:
         )
         self._personal_progress_bar.pack(fill="x", padx=0, pady=0)
         self._personal_progress_bar.set(0.0)
-
-        # ── 일시정지/재생 버튼 (좌측 상단, 상단바 아래) ──
-        self._personal_pause_btn = ctk.CTkButton(
-            frame, text="⏸ 일시정지", width=140, height=44,
-            font=self._make_font(14),
-            command=self._toggle_personal_pause,
-            fg_color=self.theme["gray"],
-            hover_color=self.theme["gray_hover"],
-            text_color=self.theme["text"],
-            corner_radius=8,
-            border_width=1,
-            border_color=self.theme["sand"],
-        )
-        self._personal_pause_btn.place(x=10, y=78)
 
         # ── 목표 달성 축하 라벨 (숨김 상태) ──
         self._personal_congrats_label = ctk.CTkLabel(
