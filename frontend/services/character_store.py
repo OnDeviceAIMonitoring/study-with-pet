@@ -43,6 +43,11 @@ def _normalize_character(raw, now_iso):
         char["name"] = "maltese"
         changed = True
 
+    # breed가 없으면 name에서 복사 (하위 호환)
+    if not isinstance(char.get("breed"), str) or not char.get("breed"):
+        char["breed"] = char["name"]
+        changed = True
+
     growth = _normalize_growth(char.get("growth", 0))
     if char.get("growth") != growth:
         char["growth"] = growth
@@ -138,11 +143,12 @@ def touch_character(chars, char_ref):
     return True
 
 
-def new_character(name, growth=0):
+def new_character(name, growth=0, breed=None):
     now_iso = _now_iso()
     return {
         "id": uuid.uuid4().hex,
         "name": name,
+        "breed": breed or name,
         "growth": _normalize_growth(growth),
         "created_at": now_iso,
         "last_accessed_at": now_iso,

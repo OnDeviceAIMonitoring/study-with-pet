@@ -419,6 +419,10 @@ class GroupScreenMixin:
         for wrap in (getattr(self, "_join_wrap", None), getattr(self, "_create_wrap", None)):
             if wrap is not None and wrap.winfo_ismapped():
                 return wrap
+        # 캐릭터 생성 화면일 때
+        char_create = getattr(self, "screen_char_create", None)
+        if char_create is not None and char_create.winfo_ismapped():
+            return char_create
         return None
 
     def _shift_form_left(self):

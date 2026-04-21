@@ -67,6 +67,21 @@ class StudyFlowMixin:
         self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
         self._group_room_code_label.configure(text=f"#코드 {room_code}")
         self._start_group_study_session()
+
+        # 현재 방의 목표/진행 값으로 초기화 (이전 방 데이터 잔존 방지)
+        goal_min = load_daily_goal(room_code) or 0
+        self._group_goal_minutes = goal_min
+        self._group_server_study_seconds = 0
+        self._group_server_goal_minutes = goal_min
+        self._group_server_all_studying = True
+        # 라벨도 즉시 갱신
+        g_total = goal_min * 60
+        g_h, g_rem = divmod(g_total, 3600)
+        g_m, g_s = divmod(g_rem, 60)
+        if hasattr(self, '_group_study_time_label'):
+            self._group_study_time_label.configure(
+                text=f"공부시간: 00:00:00 / {g_h:02d}:{g_m:02d}:{g_s:02d}")
+
         socketio_client.start_background(self, self._socket_generation)
         self.start_camera()
 

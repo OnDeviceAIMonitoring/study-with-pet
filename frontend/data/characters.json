@@ -1,6 +1,7 @@
 [
   {
     "name": "maltese",
+    "breed": "maltese",
     "growth": 34,
     "id": "5b1025faa9f145e0b543886670150bd7",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -8,6 +9,7 @@
   },
   {
     "name": "maltese",
+    "breed": "maltese",
     "growth": 119,
     "id": "83564b77bdb142e2b94f0e5811f7f720",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -15,6 +17,7 @@
   },
   {
     "name": "maltese",
+    "breed": "maltese",
     "growth": 122,
     "id": "66569b99b6fe48a6a48a9e55a9206554",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -22,6 +25,7 @@
   },
   {
     "name": "york",
+    "breed": "york",
     "growth": 123,
     "id": "e09767756d5546b7bb65b41ff446ce3e",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -29,6 +33,7 @@
   },
   {
     "name": "york",
+    "breed": "york",
     "growth": 49,
     "id": "59052e2d030a446c9a05e4142c934044",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -36,6 +41,7 @@
   },
   {
     "name": "york",
+    "breed": "york",
     "growth": 120,
     "id": "9875bbe0c1214f1e863bfb05fd74270d",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -43,6 +49,7 @@
   },
   {
     "name": "border_collie",
+    "breed": "border_collie",
     "growth": 90,
     "id": "9fe7fee57d704a36aaaad151e5b0e2f6",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -50,6 +57,7 @@
   },
   {
     "name": "border_collie",
+    "breed": "border_collie",
     "growth": 20,
     "id": "8a0db187f2564194800aa36570e2967b",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -57,6 +65,7 @@
   },
   {
     "name": "border_collie",
+    "breed": "border_collie",
     "growth": 120,
     "id": "ea9cbc230353430fa7e485647636a453",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -64,6 +73,7 @@
   },
   {
     "name": "rabbit",
+    "breed": "rabbit",
     "growth": 188,
     "id": "6a648ea9a91d4b959df01dd194a5d2d0",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -71,6 +81,7 @@
   },
   {
     "name": "rabbit",
+    "breed": "rabbit",
     "growth": 20,
     "id": "7ae662a665d54fbfae40475097d58a55",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -78,6 +89,7 @@
   },
   {
     "name": "rabbit",
+    "breed": "rabbit",
     "growth": 236,
     "id": "c28d9543dca6493488caa388060e1ba8",
     "created_at": "2026-04-20T00:46:37+00:00",
@@ -86,6 +98,7 @@
   {
     "id": "6f9b9dc6a30e4e7fa2373755a893c48e",
     "name": "york",
+    "breed": "york",
     "growth": 2,
     "created_at": "2026-04-20T05:09:29+00:00",
     "last_accessed_at": "2026-04-20T05:44:25+00:00"
@@ -93,6 +106,7 @@
   {
     "id": "0699015010c342caa482b3315071bebf",
     "name": "border_collie",
+    "breed": "border_collie",
     "growth": 10,
     "created_at": "2026-04-21T07:21:12+00:00",
     "last_accessed_at": "2026-04-21T07:21:22+00:00"
@@ -100,6 +114,7 @@
   {
     "id": "6ebc6d31ce0b4257a50a90e0bbb4b3a9",
     "name": "maltese",
+    "breed": "maltese",
     "growth": 9,
     "created_at": "2026-04-21T07:28:48+00:00",
     "last_accessed_at": "2026-04-21T08:10:30+00:00"

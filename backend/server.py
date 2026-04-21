@@ -424,7 +424,12 @@ async def study_status(sid, data):
         status = "studying"
 
     statuses = ROOM_STUDY_STATUS.setdefault(room_code, {})
+    prev_status = statuses.get(sid)
     statuses[sid] = status
+
+    # 상태가 변경되지 않았으면 브로드캐스트/로그 생략
+    if prev_status == status:
+        return
 
     # 상태 변경을 모든 참가자에게 알림
     members = ROOM_MEMBERS.get(room_code, {})
@@ -435,7 +440,7 @@ async def study_status(sid, data):
         "member_statuses": {members.get(s, "unknown"): statuses.get(s, "studying") for s in members},
     }, room=room_code)
 
-    print(f"[study_status] sid={sid} room={room_code} status={status}")
+    print(f"[study_status] sid={sid} room={room_code} status={prev_status}->{status}")
 
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

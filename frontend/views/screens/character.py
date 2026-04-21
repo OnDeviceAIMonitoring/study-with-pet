@@ -116,9 +116,10 @@ class CharScreenMixin:
                 w.destroy()
 
             name = char.get("name", "maltese")
+            breed = char.get("breed") or name
             ctype = get_stage_name_from_growth(char.get("growth", 0))
             # 성장도에 따라 계산된 단계 폴더 이미지를 사용
-            tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
+            tail_dir = f"frontend/assets/characters/{breed}/{ctype}/tail"
             frames = []
             if os.path.isdir(tail_dir):
                 files = sorted([f for f in os.listdir(tail_dir) if f.endswith('.png')])
@@ -142,24 +143,22 @@ class CharScreenMixin:
                 lbl.pack(expand=True)
                 self._screen_char_list_anim_data.append({"label": lbl, "frames": frames, "idx": 0})
             else:
-                ctk.CTkLabel(placeholder, text=char.get("display", "캐릭터"),
+                ctk.CTkLabel(placeholder, text=breed,
                              font=self._make_font(16)).pack(expand=True)
 
-            ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
+            ctk.CTkLabel(card, text=name, font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
             growth_point = int(char.get('growth', 0))
             stage_idx = min(growth_point // STAGE_UNIT, 2)
             if stage_idx >= 2:
-                growth_percent = 100
-                prog_value = 1.0
+                growth_ratio = 1.0
             else:
                 growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
-                growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
-                prog_value = growth_in_stage / STAGE_UNIT
+                growth_ratio = growth_in_stage / STAGE_UNIT
+            detailed_percent = growth_ratio * 100
             stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
-            ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
-            ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
+            ctk.CTkLabel(card, text=f"{stage_text} / 성장률: {detailed_percent:.2f}%", font=self._make_font(11), text_color=self.theme["text_muted"]).pack()
             prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["gray_hover"], progress_color=self.theme["pink_hover"])
-            prog.set(prog_value)
+            prog.set(growth_ratio)
             prog.pack(pady=8)
 
         if self._screen_char_list_anim_data:
@@ -202,6 +201,23 @@ class CharScreenMixin:
         ctk.CTkLabel(top, text="캐릭터 생성", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80,height=36, font=self._make_font(14),
               command=lambda: self.show_screen(SELECT_CHAR), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
+
+        # 이름 입력 영역
+        name_bar = ctk.CTkFrame(frame, fg_color="transparent")
+        name_bar.pack(fill="x", padx=20, pady=(12, 0))
+        ctk.CTkLabel(name_bar, text="캐릭터 이름:", font=self._make_font(14), text_color=self.theme["text"]).pack(side="left", padx=(0, 8))
+        self._create_char_name_entry = ctk.CTkEntry(
+            name_bar,
+            placeholder_text="이름을 입력해주세요",
+            height=38,
+            width=240,
+            font=self._make_font(13),
+            **self._entry_style(),
+        )
+        self._create_char_name_entry.pack(side="left")
+        self._create_char_name_entry.bind("<Button-1>", lambda e: self._show_keyboard(self._create_char_name_entry))
+        self._create_char_error_label = ctk.CTkLabel(name_bar, text="", font=self._make_font(12), **self._error_text_style())
+        self._create_char_error_label.pack(side="left", padx=(12, 0))
 
         middle = ctk.CTkFrame(frame, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=10, pady=10)
@@ -249,9 +265,14 @@ class CharScreenMixin:
         card_width = 160
 
         def on_card_click(idx):
+            char_name = self._create_char_name_entry.get().strip()
+            if not char_name:
+                self._create_char_error_label.configure(text="이름을 입력해주세요.")
+                return
+            self._create_char_error_label.configure(text="")
             chars = load_characters(sort_by_last_accessed=False)
             sel_cand = visible_candidates[idx]
-            chars.append(new_character(sel_cand["name"], 0))
+            chars.append(new_character(char_name, 0, breed=sel_cand["name"]))
             save_characters(chars)
             self.show_screen(SELECT_CHAR)
 
@@ -298,7 +319,7 @@ class CharScreenMixin:
                 lbl.pack(expand=True)
                 lbl.bind("<Button-1>", lambda e, idx=col: on_card_click(idx))
 
-            ctk.CTkLabel(card, text=cand["name"], font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
+            ctk.CTkLabel(card, text=cand["name"], font=self._make_font(12), text_color=self.theme["text_muted"]).pack(pady=(6, 2))
 
     def _rebuild_screen_char_create(self):
         for widget in self.screen_char_create.winfo_children():
@@ -393,8 +414,9 @@ class CharScreenMixin:
                 placeholder.bind("<Button-1>", lambda e, fn=on_card_click: fn())
 
                 name = char.get("name", "maltese")
+                breed = char.get("breed") or name
                 ctype = get_stage_name_from_growth(char.get("growth", 0))
-                tail_dir = f"frontend/assets/characters/{name}/{ctype}/tail"
+                tail_dir = f"frontend/assets/characters/{breed}/{ctype}/tail"
                 img_path = None
                 if os.path.isdir(tail_dir):
                     files = sorted([f for f in os.listdir(tail_dir) if f.endswith('.png')])
@@ -416,29 +438,27 @@ class CharScreenMixin:
                         self._screen_char_select_images.append(ctk_img)
                         img_label.bind("<Button-1>", lambda e, fn=on_card_click: fn())
                     except Exception:
-                        lbl = ctk.CTkLabel(placeholder, text=char.get("display", name), font=self._make_font(16))
+                        lbl = ctk.CTkLabel(placeholder, text=breed, font=self._make_font(16))
                         lbl.pack(expand=True)
                         lbl.bind("<Button-1>", lambda e, fn=on_card_click: fn())
                 else:
-                    lbl = ctk.CTkLabel(placeholder, text=char.get("display", name), font=self._make_font(16))
+                    lbl = ctk.CTkLabel(placeholder, text=breed, font=self._make_font(16))
                     lbl.pack(expand=True)
                     lbl.bind("<Button-1>", lambda e, fn=on_card_click: fn())
 
-                ctk.CTkLabel(card, text=char.get("name", "캐릭터 이름"), font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
+                ctk.CTkLabel(card, text=name, font=self._make_font(14), text_color=self.theme["text"]).pack(pady=(6, 2))
                 growth_point = int(char.get('growth', 0))
                 stage_idx = min(growth_point // STAGE_UNIT, 2)
                 if stage_idx >= 2:
-                    growth_percent = 100
-                    prog_value = 1.0
+                    growth_ratio = 1.0
                 else:
                     growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
-                    growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
-                    prog_value = growth_in_stage / STAGE_UNIT
+                    growth_ratio = growth_in_stage / STAGE_UNIT
+                detailed_percent = growth_ratio * 100
                 stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
-                ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
-                ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
+                ctk.CTkLabel(card, text=f"{stage_text} / 성장률: {detailed_percent:.2f}%", font=self._make_font(11), text_color=self.theme["text_muted"]).pack()
                 prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["gray_hover"], progress_color=self.theme["pink_hover"])
-                prog.set(prog_value)
+                prog.set(growth_ratio)
                 prog.pack(pady=8)
         else:
             ctk.CTkLabel(content, text="보유한 캐릭터가 없습니다.", font=self._make_font(16), text_color=self.theme["text_muted"]).pack(pady=40)

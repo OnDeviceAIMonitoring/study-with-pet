@@ -97,6 +97,8 @@ class GroupStudyMixin:
         char_area.place(relx=0.05, rely=0.7, anchor="w")
         self._group_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
         self._group_char_label.pack()
+        self._group_char_name_label = ctk.CTkLabel(char_area, text="", font=self._make_font(13), text_color=self.theme["text"])
+        self._group_char_name_label.pack(pady=(2, 0))
         self._group_char_growth = ctk.CTkProgressBar(
             char_area,
             width=120,
@@ -104,6 +106,8 @@ class GroupStudyMixin:
             progress_color=self.theme["pink_hover"],
         )
         self._group_char_growth.pack(pady=(2, 0))
+        self._group_char_growth_label = ctk.CTkLabel(char_area, text="", font=self._make_font(10), text_color=self.theme["text_muted"])
+        self._group_char_growth_label.pack(pady=(1, 0))
 
         # 타이머 시작
         self._start_group_study_session()
@@ -280,7 +284,7 @@ class GroupStudyMixin:
             add_points,
             on_stage_changed=lambda _g: self._reload_group_character_overlay(),
             on_progress_updated=lambda g: self._update_growth_widgets(
-                getattr(self, "_group_char_growth", None), None, g),
+                getattr(self, "_group_char_growth", None), getattr(self, "_group_char_growth_label", None), g),
         )
 
     def _reload_group_character_overlay(self):
@@ -312,6 +316,10 @@ class GroupStudyMixin:
             self._group_char_label.configure(image=None)
         if hasattr(self, "_group_char_growth"):
             self._group_char_growth.set(0.0)
+        if hasattr(self, "_group_char_name_label"):
+            self._group_char_name_label.configure(text="")
+        if hasattr(self, "_group_char_growth_label"):
+            self._group_char_growth_label.configure(text="")
 
         selected_value = getattr(self, "_selected_char", None)
         if selected_value is None:
@@ -334,8 +342,13 @@ class GroupStudyMixin:
         self.group_study_state.char_anim_sets = anim_sets
 
         growth_widget = getattr(self, "_group_char_growth", None)
-        self._group_char_growth_percent, _ = self._update_growth_widgets(growth_widget, None, char_growth)
+        growth_label = getattr(self, "_group_char_growth_label", None)
+        self._group_char_growth_percent, _ = self._update_growth_widgets(growth_widget, growth_label, char_growth)
         self.group_study_state.char_growth_percent = self._group_char_growth_percent
+
+        # 이름 라벨 표시
+        if hasattr(self, "_group_char_name_label"):
+            self._group_char_name_label.configure(text=char_name)
 
         self._group_char_frames = anim_sets.get(DEFAULT_ANIM, [])
         self._group_char_current_anim = DEFAULT_ANIM
