@@ -8,6 +8,11 @@ MediaPipe Holistic + YOLO ONNX 기반 복합 딴 짓 (Off-Task) 감지:
   - 손 가시성 / 책상 위 손 감지
   - 얼굴 트래커 화면 이탈 감지 (Kalman Filter 기반 Tracking)
   - 웃음·대화 감지
+    -> 개선 사항:
+       1) 단순 mouth open이 아니라 시간적 리듬으로 talking 판정
+       2) 하품(yawn) suppressor 추가
+       3) smile_ratio 정의 변경 (가로 확장 중심)
+       4) mouth open EMA smoothing + 초기 baseline calibration
 """
 import importlib
 import json
@@ -80,18 +85,45 @@ def _has_any_visible_hand(mp_results, pose_landmarks, mp_holistic, min_visibilit
     return (left_wrist.visibility > min_visibility) or (right_wrist.visibility > min_visibility)
 
 
-def _estimate_smile_talk_features(face_landmarks):
+def _ema(prev, current, alpha=0.35):
+    if prev is None:
+        return float(current)
+    return float((1.0 - alpha) * prev + alpha * current)
+
+
+def _count_peaks(values, min_prominence=0.008):
+    if len(values) < 3:
+        return 0
+    peaks = 0
+    for i in range(1, len(values) - 1):
+        if values[i] > values[i - 1] and values[i] > values[i + 1]:
+            if (values[i] - min(values[i - 1], values[i + 1])) >= min_prominence:
+                peaks += 1
+    return peaks
+
+
+def _estimate_face_talk_features(face_landmarks):
+    """
+    개선된 특징 정의
+    - mouth_width_ratio: 입 가로폭 / 눈 가로폭
+      -> 웃음은 대체로 좌우 가로 확장이 증가
+    - mouth_open_ratio: 입 세로폭 / 눈 가로폭
+      -> talking / yawn 구분용
+    """
     if not face_landmarks:
-        return 0.0, 0.0
+        return None
+
     lm = face_landmarks.landmark
     mouth_w = abs(lm[_MOUTH_RIGHT_IDX].x - lm[_MOUTH_LEFT_IDX].x)
     mouth_h = abs(lm[_MOUTH_LOWER_IDX].y - lm[_MOUTH_UPPER_IDX].y)
     eye_w = abs(lm[_FACE_RIGHT_EYE_OUTER_IDX].x - lm[_FACE_LEFT_EYE_OUTER_IDX].x)
-    mouth_h_safe = max(mouth_h, 1e-6)
-    eye_w_safe = max(eye_w, 1e-6)
-    smile_ratio = mouth_w / mouth_h_safe
-    mouth_open_ratio = mouth_h / eye_w_safe
-    return float(smile_ratio), float(mouth_open_ratio)
+
+    eye_w = max(eye_w, 1e-6)
+
+    return {
+        "mouth_width_ratio": float(mouth_w / eye_w),
+        "mouth_open_ratio": float(mouth_h / eye_w),
+    }
 
 
 def _extract_face_measurement(face_landmarks, pose_landmarks=None, mp_holistic=None):
@@ -295,24 +327,39 @@ def _maybe_update_calibration(runtime, status, tracker_result):
     calib = runtime["calibration"]
     if not calib["enabled"] or calib["done"]:
         return
+
     now_ts = time.perf_counter()
     if not calib["started"]:
         calib["started"] = True
         calib["start_ts"] = now_ts
+
     if tracker_result is not None:
         calib["center_x_samples"].append(float(tracker_result["center"][0]))
+
     if "yaw_samples" not in calib:
         calib["yaw_samples"] = []
     if status.get("mediapipe_yaw") is not None:
         calib["yaw_samples"].append(status["mediapipe_yaw"])
+
+    if "mouth_open_samples" not in calib:
+        calib["mouth_open_samples"] = []
+    mouth_open_raw = status.get("mouth_open_ratio_raw")
+    mouth_ignore_above = float(calib.get("mouth_open_ignore_above", 0.18))
+    if mouth_open_raw is not None and mouth_open_raw < mouth_ignore_above:
+        calib["mouth_open_samples"].append(float(mouth_open_raw))
+
     elapsed = now_ts - calib["start_ts"]
     if elapsed < calib["duration_seconds"]:
         return
     if len(calib["center_x_samples"]) < calib["min_samples"]:
         return
+
     calib["done"] = True
+
     if calib["yaw_samples"]:
-        runtime["yaw_calib"] = float(np.mean(calib["yaw_samples"]))
+        runtime["yaw_calib"] = float(np.median(calib["yaw_samples"]))
+    if calib["mouth_open_samples"]:
+        runtime["mouth_open_calib"] = float(np.median(calib["mouth_open_samples"]))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -327,10 +374,9 @@ def _build_phone_label_metadata(model_cfg):
                 id_to_name[int(k)] = str(v)
             except (TypeError, ValueError):
                 continue
-            if id_to_name:
-                pass
         if id_to_name:
             return set(id_to_name.keys()), id_to_name
+
     label_ids = list(model_cfg.get("phone_label_ids", [67]))
     label_names = list(model_cfg.get("phone_label_names", []))
     id_to_name = {}
@@ -502,10 +548,10 @@ class OffTaskDetector(BaseDetector):
         self._last_ts = None
         self.runtime = self._build_runtime_state()
 
-        # HUD 상태 (draw_hud에서 사용)
+        # HUD 상태
         self._status = None
         self._tracker_result = None
-        self._shared = None  # SharedMediaPipe 참조 (draw_hud에서 사용)
+        self._shared = None
 
     def _build_runtime_state(self):
         cfg = self.cfg
@@ -515,8 +561,6 @@ class OffTaskDetector(BaseDetector):
             "no_hand_counter": 0,
             "smile_talk_counter": 0,
             "yaw_out_counter": 0,
-            "smile_talk_events": deque(),
-            "talk_values": deque(),
             "study_started": False,
             "fps": self._fps,
             "frame_index": 0,
@@ -533,6 +577,11 @@ class OffTaskDetector(BaseDetector):
                 "done": False,
                 "start_ts": 0.0,
                 "center_x_samples": [],
+                "yaw_samples": [],
+                "mouth_open_samples": [],
+                "mouth_open_ignore_above": cfg.get("calibration", {}).get(
+                    "mouth_open_ignore_above", 0.18
+                ),
             },
             "tracker": {
                 "kalman": None,
@@ -545,6 +594,11 @@ class OffTaskDetector(BaseDetector):
                 "history_maxlen": 50,
             },
             "yaw_calib": None,
+            "mouth_open_calib": None,
+            "mouth_open_ema": None,
+            "prev_mouth_open_ratio": None,
+            "mouth_open_series": deque(),
+            "mouth_delta_series": deque(),
             "phone_events": deque(),
             "yaw_events": deque(),
         }
@@ -563,9 +617,7 @@ class OffTaskDetector(BaseDetector):
         self.runtime["fps"] = self._fps
         self.runtime["frame_index"] += 1
 
-        h, w = frame.shape[:2]
         self._shared = shared
-
         face_landmarks = shared.face_landmarks if shared else None
         pose_landmarks = shared.pose_landmarks if shared else None
         thresholds = self.runtime["active_thresholds"]
@@ -581,7 +633,7 @@ class OffTaskDetector(BaseDetector):
         requires_hand_contact = bool(model_cfg.get("phone_requires_hand_contact", True))
         hand_contact_distance = float(tracking_cfg.get("object_hand_max_distance_ratio", 0.05))
         lower_region_thresh = float(tracking_cfg.get("object_bottom_ignore_threshold", 0.8))
-        if phone_detected and requires_hand_contact:
+        if phone_detected and requires_hand_contact and shared is not None:
             phone_detected = _is_object_held_by_hand(
                 phone_boxes, shared.results, pose_landmarks,
                 shared.mp_holistic, frame.shape,
@@ -596,10 +648,8 @@ class OffTaskDetector(BaseDetector):
             "phone_hit_count": 0,
             "phone_total_count": 0,
             "phone_ratio": 0.0,
-            "phone_alert_ratio": float(
-                thresholds.get("phone_alert_ratio", 0.3)),
-            "phone_window_sec": float(
-                thresholds.get("phone_window_seconds", 5.0)),
+            "phone_alert_ratio": float(thresholds.get("phone_alert_ratio", 0.3)),
+            "phone_window_sec": float(thresholds.get("phone_window_seconds", 5.0)),
             "status_no_hands": False,
             "status_face_missing": False,
             "status_tracker_out": False,
@@ -609,19 +659,23 @@ class OffTaskDetector(BaseDetector):
             "yaw_hit_count": 0,
             "yaw_total_count": 0,
             "yaw_ratio": 0.0,
-            "yaw_alert_ratio": float(
-                thresholds.get("yaw_alert_ratio", 0.3)),
-            "yaw_window_sec": float(
-                thresholds.get("yaw_window_seconds", 5.0)),
+            "yaw_alert_ratio": float(thresholds.get("yaw_alert_ratio", 0.3)),
+            "yaw_window_sec": float(thresholds.get("yaw_window_seconds", 5.0)),
             "has_hand_visible": False,
             "study_started": self.runtime["study_started"],
             "tracker_out_sec": 0.0,
             "smile_ratio": 0.0,
+            "mouth_width_ratio": 0.0,
             "mouth_open_ratio": 0.0,
+            "mouth_open_ratio_raw": None,
+            "mouth_open_baseline": self.runtime.get("mouth_open_calib"),
             "talk_stdev": 0.0,
+            "talk_peak_count": 0,
+            "talk_mean_delta": 0.0,
+            "talk_active_ratio": 0.0,
+            "yawn_like": False,
             "smile_talk_detect_sec": 0.0,
-            "smile_talk_window_sec": float(
-                thresholds.get("smile_talk_window_seconds", 2.0)),
+            "smile_talk_window_sec": float(thresholds.get("smile_talk_window_seconds", 1.5)),
             "tracker_history_std": 0.0,
             "tracker_matched": False,
             "tracker_lost_frames": self.runtime["tracker"]["lost_frames"],
@@ -635,15 +689,12 @@ class OffTaskDetector(BaseDetector):
         phone_window_sec = status["phone_window_sec"]
         phone_alert_ratio = status["phone_alert_ratio"]
         now_ts = time.perf_counter()
-        self.runtime["phone_events"].append(
-            (now_ts, 1 if phone_detected else 0))
+        self.runtime["phone_events"].append((now_ts, 1 if phone_detected else 0))
         cutoff_phone = now_ts - phone_window_sec
-        while (self.runtime["phone_events"]
-               and self.runtime["phone_events"][0][0] < cutoff_phone):
+        while self.runtime["phone_events"] and self.runtime["phone_events"][0][0] < cutoff_phone:
             self.runtime["phone_events"].popleft()
         phone_total = len(self.runtime["phone_events"])
-        phone_hit_count = int(
-            sum(v for _, v in self.runtime["phone_events"]))
+        phone_hit_count = int(sum(v for _, v in self.runtime["phone_events"]))
         phone_ratio = phone_hit_count / max(phone_total, 1)
         status["phone_hit_count"] = phone_hit_count
         status["phone_total_count"] = phone_total
@@ -652,53 +703,120 @@ class OffTaskDetector(BaseDetector):
 
         # ── 트래커 업데이트 ───────────────────────────────
         measurement = _extract_face_measurement(
-            face_landmarks, pose_landmarks, shared.mp_holistic)
+            face_landmarks, pose_landmarks, shared.mp_holistic if shared else None)
         tracker_result = _update_face_tracker(self.runtime, measurement, dt, self.cfg)
         if tracker_result is not None:
             status["tracker_matched"] = tracker_result["matched"]
             status["tracker_lost_frames"] = self.runtime["tracker"]["lost_frames"]
 
-        # ── Smile/Talk 감지 ───────────────────────────────
-        smile_talk_window_sec = status["smile_talk_window_sec"]
-        smile_talk_req_frames = int(
-            max(1, thresholds.get("smile_talk_frames", 5)))
-        talk_stdev_thresh = float(
-            thresholds.get("talking_stdev_threshold", 0.01))
+        # ── Smile/Talk 감지 (개선판) ─────────────────────
+        talk_window_sec = status["smile_talk_window_sec"]
 
         if face_landmarks:
             self.runtime["face_missing_counter"] = 0
+
             if features.get("enable_smile_talking_detection", True):
-                smile_r, mouth_r = _estimate_smile_talk_features(face_landmarks)
-                status["smile_ratio"] = smile_r
-                status["mouth_open_ratio"] = mouth_r
-                is_smile = smile_r <= thresholds.get("smile_ratio_threshold", 8.0)
-                is_talking = mouth_r >= thresholds.get(
-                    "talking_open_ratio_threshold", 0.06)
-                self.runtime["smile_talk_events"].append(
-                    (now_ts, 1 if (is_smile and is_talking) else 0))
-                self.runtime["talk_values"].append((now_ts, float(mouth_r)))
+                feats = _estimate_face_talk_features(face_landmarks)
+
+                mouth_width_ratio = feats["mouth_width_ratio"]
+                mouth_open_ratio_raw = feats["mouth_open_ratio"]
+
+                ema_alpha = float(thresholds.get("mouth_open_ema_alpha", 0.35))
+                mouth_open_smoothed = _ema(
+                    self.runtime["mouth_open_ema"],
+                    mouth_open_ratio_raw,
+                    ema_alpha,
+                )
+                self.runtime["mouth_open_ema"] = mouth_open_smoothed
+
+                baseline = self.runtime.get("mouth_open_calib")
+                if baseline is not None:
+                    mouth_open_rel = max(0.0, mouth_open_smoothed - baseline)
+                else:
+                    mouth_open_rel = mouth_open_smoothed
+
+                prev_open = self.runtime["prev_mouth_open_ratio"]
+                delta_open = 0.0 if prev_open is None else abs(mouth_open_rel - prev_open)
+                self.runtime["prev_mouth_open_ratio"] = mouth_open_rel
+
+                status["smile_ratio"] = mouth_width_ratio
+                status["mouth_width_ratio"] = mouth_width_ratio
+                status["mouth_open_ratio_raw"] = mouth_open_ratio_raw
+                status["mouth_open_ratio"] = mouth_open_rel
+
+                self.runtime["mouth_open_series"].append((now_ts, float(mouth_open_rel)))
+                self.runtime["mouth_delta_series"].append((now_ts, float(delta_open)))
         else:
             if features.get("enable_face_missing_detection", True):
                 self.runtime["face_missing_counter"] += 1
+            self.runtime["prev_mouth_open_ratio"] = None
 
-        cutoff = now_ts - smile_talk_window_sec
-        while (self.runtime["smile_talk_events"]
-               and self.runtime["smile_talk_events"][0][0] < cutoff):
-            self.runtime["smile_talk_events"].popleft()
-        while (self.runtime["talk_values"]
-               and self.runtime["talk_values"][0][0] < cutoff):
-            self.runtime["talk_values"].popleft()
+        cutoff = now_ts - talk_window_sec
+        while self.runtime["mouth_open_series"] and self.runtime["mouth_open_series"][0][0] < cutoff:
+            self.runtime["mouth_open_series"].popleft()
+        while self.runtime["mouth_delta_series"] and self.runtime["mouth_delta_series"][0][0] < cutoff:
+            self.runtime["mouth_delta_series"].popleft()
 
-        hit_count = int(sum(v for _, v in self.runtime["smile_talk_events"]))
-        talk_series = [v for _, v in self.runtime["talk_values"]]
-        talk_stdev = (float(np.sqrt(np.var(talk_series)))
-                      if len(talk_series) >= 2 else 0.0)
-        status["talk_stdev"] = talk_stdev
-        status["smile_talk_detect_sec"] = hit_count / max(self._fps, 1)
-        status["status_smile_talking"] = (
-            hit_count >= smile_talk_req_frames
-            and talk_stdev >= talk_stdev_thresh
+        open_vals = [v for _, v in self.runtime["mouth_open_series"]]
+        delta_vals = [v for _, v in self.runtime["mouth_delta_series"]]
+
+        talk_stdev = float(np.std(open_vals)) if len(open_vals) >= 2 else 0.0
+        mean_open = float(np.mean(open_vals)) if open_vals else 0.0
+        max_open = float(np.max(open_vals)) if open_vals else 0.0
+        mean_delta = float(np.mean(delta_vals)) if delta_vals else 0.0
+
+        peak_count = _count_peaks(
+            open_vals,
+            min_prominence=float(thresholds.get("talking_peak_prominence", 0.008))
         )
+
+        talk_active_min = float(thresholds.get("talking_open_ratio_min", 0.035))
+        active_frames = sum(v >= talk_active_min for v in open_vals)
+        active_ratio = active_frames / max(len(open_vals), 1)
+
+        status["talk_stdev"] = talk_stdev
+        status["talk_peak_count"] = peak_count
+        status["talk_mean_delta"] = mean_delta
+        status["talk_active_ratio"] = active_ratio
+        status["smile_talk_detect_sec"] = active_frames / max(self._fps, 1)
+
+        # smile: 입이 좌우로 넓어져야 함
+        is_smile = (
+            face_landmarks is not None
+            and status["mouth_width_ratio"] >= float(thresholds.get("smile_width_ratio_threshold", 0.42))
+        )
+
+        # talking: 단순 입벌림이 아니라
+        #   - 중간 정도 개구
+        #   - 평균 변화량
+        #   - 여러 번의 피크
+        #   - 일정 비율 이상 active
+        is_talking = (
+            face_landmarks is not None
+            and mean_open >= float(thresholds.get("talking_open_ratio_min", 0.035))
+            and mean_open <= float(thresholds.get("talking_open_ratio_max", 0.16))
+            and mean_delta >= float(thresholds.get("talking_delta_mean_threshold", 0.006))
+            and peak_count >= int(thresholds.get("talking_peak_count_threshold", 2))
+            and active_ratio >= float(thresholds.get("talking_active_ratio_threshold", 0.25))
+        )
+
+        # yawn: 크게 벌어지고, 피크가 적거나 오래 유지됨
+        yawn_open_thresh = float(thresholds.get("yawn_open_ratio_threshold", 0.18))
+        yawn_peak_count_max = int(thresholds.get("yawn_peak_count_max", 1))
+        yawn_long_open_ratio_thresh = float(thresholds.get("yawn_long_open_ratio_threshold", 0.45))
+        long_open_ratio = (
+            sum(v >= yawn_open_thresh for v in open_vals) / max(len(open_vals), 1)
+            if open_vals else 0.0
+        )
+
+        is_yawn = (
+            face_landmarks is not None
+            and max_open >= yawn_open_thresh
+            and (peak_count <= yawn_peak_count_max or long_open_ratio >= yawn_long_open_ratio_thresh)
+        )
+
+        status["yawn_like"] = is_yawn
+        status["status_smile_talking"] = bool(is_smile and is_talking and not is_yawn)
 
         # ── 트래커 화면 이탈 ──────────────────────────────
         is_tracker_out = _compute_tracker_out_of_screen(tracker_result)
@@ -729,22 +847,22 @@ class OffTaskDetector(BaseDetector):
         calib_yaw = self.runtime.get("yaw_calib")
         if calib_yaw is not None and mediapipe_yaw is not None:
             status["yaw_from_calib"] = mediapipe_yaw - calib_yaw
+        else:
+            status["yaw_from_calib"] = mediapipe_yaw
 
         yaw_max_deg = float(thresholds.get("yaw_max_degrees", 30.0))
         yaw_window_sec = status["yaw_window_sec"]
         yaw_alert_ratio = status["yaw_alert_ratio"]
         yaw_deg = status["yaw_from_calib"]
-        yaw_is_out = (yaw_deg is not None
-                      and abs(yaw_deg * 90.0) > yaw_max_deg)
-        self.runtime["yaw_events"].append(
-            (now_ts, 1 if yaw_is_out else 0))
+        yaw_is_out = (yaw_deg is not None and abs(yaw_deg * 90.0) > yaw_max_deg)
+
+        self.runtime["yaw_events"].append((now_ts, 1 if yaw_is_out else 0))
         cutoff_yaw = now_ts - yaw_window_sec
-        while (self.runtime["yaw_events"]
-               and self.runtime["yaw_events"][0][0] < cutoff_yaw):
+        while self.runtime["yaw_events"] and self.runtime["yaw_events"][0][0] < cutoff_yaw:
             self.runtime["yaw_events"].popleft()
+
         yaw_total = len(self.runtime["yaw_events"])
-        yaw_hit_count = int(
-            sum(v for _, v in self.runtime["yaw_events"]))
+        yaw_hit_count = int(sum(v for _, v in self.runtime["yaw_events"]))
         yaw_ratio = yaw_hit_count / max(yaw_total, 1)
         status["yaw_hit_count"] = yaw_hit_count
         status["yaw_total_count"] = yaw_total
@@ -753,12 +871,10 @@ class OffTaskDetector(BaseDetector):
         status["status_yaw_out"] = status["yaw_alert"]
 
         # ── 손 가시성 ─────────────────────────────────────
-        if features.get("enable_hands_on_desk_detection", True):
-            min_hand_vis = float(
-                thresholds.get("min_pose_visibility_for_hand", 0.35))
+        if features.get("enable_hands_on_desk_detection", True) and shared is not None:
+            min_hand_vis = float(thresholds.get("min_pose_visibility_for_hand", 0.35))
             has_hand = _has_any_visible_hand(
-                shared.results, pose_landmarks, shared.mp_holistic,
-                min_hand_vis)
+                shared.results, pose_landmarks, shared.mp_holistic, min_hand_vis)
             status["has_hand_visible"] = has_hand
 
             if not self.runtime["study_started"] and has_hand:
@@ -783,7 +899,6 @@ class OffTaskDetector(BaseDetector):
                         thresholds.get("desk_y_threshold", 0.6)):
                     status["status_no_hands"] = True
         else:
-            # 손 감지 비활성화 — 항상 study_started, no_hands=False
             if not self.runtime["study_started"]:
                 self.runtime["study_started"] = True
             status["study_started"] = True
@@ -809,6 +924,7 @@ class OffTaskDetector(BaseDetector):
                 status["calibration_state"] = "done"
                 status["calibration_elapsed"] = calib["duration_seconds"]
                 status["calibration_duration"] = calib["duration_seconds"]
+                status["mouth_open_baseline"] = self.runtime.get("mouth_open_calib")
             else:
                 elapsed = (max(0.0, time.perf_counter() - calib["start_ts"])
                            if calib["started"] else 0.0)
@@ -818,15 +934,13 @@ class OffTaskDetector(BaseDetector):
                 status["calibration_duration"] = calib["duration_seconds"]
 
         # ── 트래커 히스토리 저장 (시각화용) ───────────────
-        if (tracker_result is not None
-                and tracker_result["center"] is not None):
+        if tracker_result is not None and tracker_result["center"] is not None:
             center = tracker_result["center"]
             is_out = _compute_tracker_out_of_screen(tracker_result)
             tracker = self.runtime["tracker"]
             tracker["history"].append((center.copy(), is_out))
             if len(tracker["history"]) > tracker["history_maxlen"]:
-                tracker["history"] = tracker["history"][
-                    -tracker["history_maxlen"]:]
+                tracker["history"] = tracker["history"][-tracker["history_maxlen"]:]
 
         # ── 최종 판단 ────────────────────────────────────
         status["is_concentrating"] = not (
@@ -870,8 +984,7 @@ class OffTaskDetector(BaseDetector):
     def _run_phone_detection(self, frame, features, model_cfg):
         phone_detected = False
         phone_boxes = []
-        phone_interval = max(1, int(
-            model_cfg.get("phone_detect_every_n_frames", 7)))
+        phone_interval = max(1, int(model_cfg.get("phone_detect_every_n_frames", 7)))
         phone_ready = (self.phone_detector is not None
                        and self.phone_detector.get("available", False))
 
@@ -883,11 +996,9 @@ class OffTaskDetector(BaseDetector):
         if self._executor is not None:
             if (self.runtime["frame_index"] - 1) % phone_interval == 0:
                 if self._yolo_future is None or self._yolo_future.done():
-                    if (self._yolo_future is not None
-                            and self._yolo_future.done()):
+                    if self._yolo_future is not None and self._yolo_future.done():
                         try:
-                            self._yolo_last_result = (
-                                self._yolo_future.result())
+                            self._yolo_last_result = self._yolo_future.result()
                         except Exception:
                             self._yolo_last_result = (False, [])
                     self._yolo_future = self._executor.submit(
@@ -895,13 +1006,10 @@ class OffTaskDetector(BaseDetector):
             phone_detected, phone_boxes = self._yolo_last_result
         else:
             if (self.runtime["frame_index"] - 1) % phone_interval == 0:
-                phone_detected, phone_boxes = _detect_phone(
-                    frame, self.phone_detector)
+                phone_detected, phone_boxes = _detect_phone(frame, self.phone_detector)
             else:
-                phone_detected = self.runtime[
-                    "last_phone_detection"]["detected"]
-                phone_boxes = self.runtime[
-                    "last_phone_detection"]["boxes"]
+                phone_detected = self.runtime["last_phone_detection"]["detected"]
+                phone_boxes = self.runtime["last_phone_detection"]["boxes"]
 
         self.runtime["last_phone_detection"] = {
             "detected": phone_detected,
@@ -922,7 +1030,6 @@ class OffTaskDetector(BaseDetector):
             draw_off_task_bar,
         )
 
-        # 항상 표시: 좌측 하단 딴 짓 상태 바
         draw_off_task_bar(frame, self._status, self.runtime)
 
         if viz_cfg.get("draw_landmarks", True) and self._shared is not None:
