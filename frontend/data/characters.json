@@ -89,5 +89,19 @@
     "growth": 2,
     "created_at": "2026-04-20T05:09:29+00:00",
     "last_accessed_at": "2026-04-20T05:44:25+00:00"
+  },
+  {
+    "id": "0699015010c342caa482b3315071bebf",
+    "name": "border_collie",
+    "growth": 10,
+    "created_at": "2026-04-21T07:21:12+00:00",
+    "last_accessed_at": "2026-04-21T07:21:22+00:00"
+  },
+  {
+    "id": "6ebc6d31ce0b4257a50a90e0bbb4b3a9",
+    "name": "maltese",
+    "growth": 9,
+    "created_at": "2026-04-21T07:28:48+00:00",
+    "last_accessed_at": "2026-04-21T08:10:30+00:00"
   }
 ]

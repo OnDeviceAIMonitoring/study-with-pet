@@ -159,7 +159,6 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self.container.pack(fill="both", expand=True)
 
         self.screen_main = ctk.CTkFrame(self.container)
-        self.screen_char_legacy = ctk.CTkFrame(self.container)
         self.screen_char_list = ctk.CTkFrame(self.container)
         self.screen_char_create = ctk.CTkFrame(self.container)
         self.screen_group = ctk.CTkFrame(self.container)
@@ -184,7 +183,6 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             border_color=self.theme["sand"],
         )
 
-        self._screen_char_legacy_page = 0
         self._screen_char_list_page = 0
         self._screen_char_create_page = 0
         self._screen_char_select_page = 0
@@ -277,7 +275,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
             self._build_screen_char_create()
         
         # 화면 등록
-        self.screen_manager.register(MAIN, self.screen_main, on_show=_on_show_main)
+        self.screen_manager.register(MAIN, self.screen_main, on_show=_on_show_main, on_hide=self._stop_main_anim)
         self.screen_manager.register(GROUP_LIST, self.screen_group_list, on_show=_on_show_group_list)
         self.screen_manager.register(GROUP_CREATE, self.screen_group_create, on_show=_on_show_group_create)
         self.screen_manager.register(GROUP_JOIN, self.screen_group_join, on_show=_on_show_group_join)
@@ -296,7 +294,6 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         self.container.configure(fg_color=bg)
         screens = [
             self.screen_main,
-            self.screen_char_legacy,
             self.screen_char_list,
             self.screen_char_create,
             self.screen_group,

@@ -26,6 +26,9 @@ class GroupStudyMixin:
         self.group_screen_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18), text_color=self.theme["text"])
         self.group_screen_title.pack(side="left", padx=16)
 
+        self._group_room_code_label = ctk.CTkLabel(top, text="", font=self._make_font(14), text_color=self.theme["text_muted"])
+        self._group_room_code_label.pack(side="left", padx=(0, 12))
+
         # 공부시간 라벨 (HH:MM:SS / HH:MM:SS 형태)
         room_code = getattr(self.args, 'room', '')
         goal_min = load_daily_goal(room_code) or 0

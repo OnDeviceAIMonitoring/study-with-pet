@@ -36,6 +36,23 @@ _ENCOURAGE_MSGS = [
 ]
 _ENCOURAGE_INTERVAL = 10.0   # 초 (warning 없이 이 시간 유지 시 표시)
 _ENCOURAGE_SHOW_SEC = 6.0     # 말풍선 표시 시간
+_WARNING_SHOW_SEC  = 4.0      # 경고 말풍선 표시 시간
+_WARNING_COOLDOWN  = 8.0      # 같은 경고 반복 방지 쿨다운
+
+_WARNING_MSGS = {
+    "DROWSINESS": [
+        "눈이 감기고 있어!",
+        "졸음이 오면 찬물 한 잔 어때?",
+    ],
+    "OFF_TASK": [
+        "딴 곳 보고 있지 않아?",
+        "집중! 다시 돌아오자~ ",
+    ],
+    "LOW_FOCUS": [
+        "몸이 들썩들썩! 집중해보자!",
+        "잠깐 진정하고 다시 집중!",
+    ],
+}
 
 
 def _make_tone(freq, duration_ms, volume=0.5, sample_rate=22050):
@@ -230,10 +247,12 @@ class PersonalStudyMixin:
         )
         self._bubble_label.pack(padx=14, pady=6)
         self._bubble_visible = False
+        self._bubble_kind = None       # "encourage" | "warning"
         self._last_warning_time = time.time()
         self._bubble_hide_time = 0.0
         self._bubble_y = 0.0      # 현재 y 비율 (rely)
         self._bubble_target_y = 0.0
+        self._last_warning_bubble_time = 0.0   # 경고 말풍선 쿨다운
 
         self._camera_char_frames = []
         self._camera_char_frame_idx = 0
@@ -445,27 +464,31 @@ class PersonalStudyMixin:
 
         _now = time.time()
 
-        # 경고 상태일 때 말풍선 숨기기 & 타이머 리셋
-        if current_signal in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS"):
+        is_warning = current_signal in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS")
+
+        if is_warning:
             self._last_warning_time = _now
-            if self._bubble_visible:
+            # 응원 말풍선이 떠 있으면 숨기기
+            if self._bubble_visible and self._bubble_kind == "encourage":
                 self._bubble_frame.place_forget()
                 self._bubble_visible = False
+            # 경고 말풍선이 없으면 새로 표시 (제자리 고정)
+            if not self._bubble_visible:
+                msgs = _WARNING_MSGS.get(current_signal, [])
+                if msgs:
+                    self._show_bubble(_random.choice(msgs), 0, kind="warning")
+        else:
+            # 경고 말풍선이 떠 있으면 시그널 해제 → 즉시 숨기기
+            if self._bubble_visible and self._bubble_kind == "warning":
+                self._bubble_frame.place_forget()
+                self._bubble_visible = False
+            # 일정 시간 경고 없이 집중하면 응원 말풍선 표시
+            if not self._bubble_visible and (_now - self._last_warning_time) >= _ENCOURAGE_INTERVAL:
+                self._show_bubble(_random.choice(_ENCOURAGE_MSGS), _ENCOURAGE_SHOW_SEC, kind="encourage")
+                self._last_warning_time = _now
 
-        # 일정 시간 경고 없이 집중하면 응원 말풍선 표시
-        if not self._bubble_visible and (_now - self._last_warning_time) >= _ENCOURAGE_INTERVAL:
-            msg = _random.choice(_ENCOURAGE_MSGS)
-            self._bubble_label.configure(text=f"  {msg}  ")
-            self._bubble_y = 0.62
-            self._bubble_target_y = 0.08
-            self._bubble_frame.place(relx=0.05, rely=self._bubble_y, anchor="sw")
-            self._bubble_frame.lift()
-            self._bubble_visible = True
-            self._bubble_hide_time = _now + _ENCOURAGE_SHOW_SEC
-            self._last_warning_time = _now
-
-        # 위로 떠오르는 애니메이션 (200ms 틱마다)
-        if self._bubble_visible:
+        # 응원 말풍선만 위로 떠오르는 애니메이션
+        if self._bubble_visible and self._bubble_kind == "encourage":
             if self._bubble_y > self._bubble_target_y:
                 self._bubble_y -= 0.015
                 self._bubble_frame.place_configure(rely=max(self._bubble_y, self._bubble_target_y))
@@ -474,6 +497,29 @@ class PersonalStudyMixin:
                 self._bubble_visible = False
 
         self.root.after(200, self._encourage_bubble_tick)
+
+    def _show_bubble(self, msg: str, duration: float, kind: str = "encourage"):
+        """말풍선을 표시한다. warning은 제자리 고정(빨간 배경), encourage는 위로 떠오름."""
+        if kind == "warning":
+            bg_color   = "#cc2222"
+            text_color = "#ffffff"
+            border     = "#880000"
+            self._bubble_y = 0.55
+            self._bubble_target_y = 0.55
+        else:
+            bg_color   = self.theme["white"]
+            text_color = self.theme["text"]
+            border     = "black"
+            self._bubble_y = 0.62
+            self._bubble_target_y = 0.08
+
+        self._bubble_frame.configure(fg_color=bg_color, border_color=border)
+        self._bubble_label.configure(text=f"  {msg}  ", text_color=text_color)
+        self._bubble_frame.place(relx=0.05, rely=self._bubble_y, anchor="sw")
+        self._bubble_frame.lift()
+        self._bubble_visible = True
+        self._bubble_kind = kind
+        self._bubble_hide_time = time.time() + duration if duration > 0 else float('inf')
 
     def _camera_char_anim_update(self):
         if not self._camera_char_anim_running:

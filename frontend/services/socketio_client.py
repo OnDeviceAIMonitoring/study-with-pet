@@ -113,7 +113,7 @@ async def _socketio_main(app, generation: int):
             app.frame_map[nickname] = {
                 "frame": frame,
                 "is_main": False,
-                "updated_at": data.get("ts", datetime.now().isoformat(timespec="seconds")),
+                "updated_at": datetime.now().isoformat(timespec="seconds"),  # 로컬 시간 사용 (서버-클라이언트 시각 차이 방지)
             }
 
     @sio.on("member_left")

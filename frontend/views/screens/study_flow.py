@@ -65,6 +65,7 @@ class StudyFlowMixin:
 
         self.show_screen(GROUP_ROOM)
         self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
+        self._group_room_code_label.configure(text=f"#코드 {room_code}")
         self._start_group_study_session()
         socketio_client.start_background(self, self._socket_generation)
         self.start_camera()
