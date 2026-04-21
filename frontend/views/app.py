@@ -45,6 +45,7 @@ from .screens import (
 )
 from .states import CameraState, PersonalStudyState, GroupStudyState, NavigationState
 from .screen_manager import ScreenManager
+from .onscreen_keyboard import OnScreenKeyboard
 from .layouts import compose_grid, compose_group
 from .frame_utils import build_waiting_frame, draw_rect_border, CAMERA_BORDER_BGR
 
@@ -164,6 +165,17 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
 
         self.theme = dict(self.THEME_COZY_STUDY)
         self._apply_theme_to_root()
+
+        # 화상 키보드 (단체방 생성/참가 화면용)
+        self.onscreen_keyboard = OnScreenKeyboard(
+            self.container,
+            theme=self.theme,
+            make_font=self._make_font,
+            fg_color=self.theme["beige"],
+            corner_radius=12,
+            border_width=1,
+            border_color=self.theme["sand"],
+        )
 
         self._screen_char_legacy_page = 0
         self._screen_char_list_page = 0
@@ -360,6 +372,10 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
     # ──────────────────────────────────────────────
 
     def show_screen(self, screen_id: int):
+        # 화면 전환 시 화상 키보드 자동 숨김
+        if hasattr(self, "onscreen_keyboard") and self.onscreen_keyboard.is_visible:
+            self.onscreen_keyboard.hide()
+
         def _hide_all():
             for widget in self.container.winfo_children():
                 widget.pack_forget()

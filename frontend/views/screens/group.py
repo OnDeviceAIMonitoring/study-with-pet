@@ -148,6 +148,7 @@ class GroupScreenMixin:
             **self._entry_style(),
         )
         self.join_name_entry.pack(padx=28)
+        self.join_name_entry.bind("<Button-1>", lambda e: self._show_keyboard(self.join_name_entry))
 
         ctk.CTkLabel(form, text="참가 코드", font=self._make_font(13), anchor="w", text_color=self.theme["text"]).pack(
             pady=(16, 4), padx=28, anchor="w")
@@ -160,6 +161,7 @@ class GroupScreenMixin:
             **self._entry_style(),
         )
         self.join_code_entry.pack(padx=28)
+        self.join_code_entry.bind("<Button-1>", lambda e: self._show_keyboard(self.join_code_entry))
 
         self.join_error_label = ctk.CTkLabel(
             form, text="", font=self._make_font(12), width=380, **self._error_text_style())
@@ -234,6 +236,7 @@ class GroupScreenMixin:
             **self._entry_style(),
         )
         self.create_name_entry.pack(padx=28)
+        self.create_name_entry.bind("<Button-1>", lambda e: self._show_keyboard(self.create_name_entry))
 
         ctk.CTkLabel(form, text="참가 코드", font=self._make_font(13), anchor="w", text_color=self.theme["text"]).pack(
             pady=(16, 4), padx=28, anchor="w")
@@ -246,6 +249,7 @@ class GroupScreenMixin:
             **self._entry_style(),
         )
         self.create_code_entry.pack(padx=28)
+        self.create_code_entry.bind("<Button-1>", lambda e: self._show_keyboard(self.create_code_entry))
 
         self.create_error_label = ctk.CTkLabel(
             form, text="", font=self._make_font(12), width=380, **self._error_text_style())
@@ -280,6 +284,26 @@ class GroupScreenMixin:
                 self.create_error_label.configure(text=err_map.get(result.get("error", ""), "생성에 실패했습니다."))
                 return
             room_manager.add_room(name, code)
-            self._start_group_room_flow(code, name)
+            self.show_screen(GROUP_LIST)
 
         self._call_api("/rooms/create", {"name": name, "room_code": code}, on_result)
+
+    # ──────────────────────────────────────────────
+    # 화상 키보드 헬퍼
+    # ──────────────────────────────────────────────
+
+    def _show_keyboard(self, entry):
+        """Entry 클릭 시 화상 키보드를 표시"""
+        kb = getattr(self, "onscreen_keyboard", None)
+        if kb is None:
+            return
+        # 이미 같은 Entry에 열려있으면 무시
+        if kb.is_visible and kb._target_entry is entry:
+            return
+        kb.show(entry)
+
+    def _hide_keyboard(self):
+        """화상 키보드 숨기기"""
+        kb = getattr(self, "onscreen_keyboard", None)
+        if kb is not None and kb.is_visible:
+            kb.hide()
