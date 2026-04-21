@@ -200,6 +200,8 @@ class CharScreenMixin:
                     growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
                     growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
                     prog_value = growth_in_stage / STAGE_UNIT
+                stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
+                ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
                 prog.set(prog_value)
@@ -326,6 +328,8 @@ class CharScreenMixin:
                 growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
                 growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
                 prog_value = growth_in_stage / STAGE_UNIT
+            stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
+            ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
             ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
             prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
             prog.set(prog_value)
@@ -604,6 +608,8 @@ class CharScreenMixin:
                     growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
                     growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
                     prog_value = growth_in_stage / STAGE_UNIT
+                stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
+                ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["white"], progress_color=self.theme["pink"])
                 prog.set(prog_value)
