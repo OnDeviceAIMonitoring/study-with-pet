@@ -114,7 +114,7 @@ class PersonalStudyMixin:
 
         self._camera_char_label = ctk.CTkLabel(char_area, text="", fg_color="transparent")
         self._camera_char_label.pack()
-        self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14, "bold"), text_color=self.theme["text"])
+        self._camera_char_name = ctk.CTkLabel(char_area, text="", font=self._make_font(14), text_color=self.theme["text"])
         self._camera_char_growth = ctk.CTkProgressBar(char_area, width=120, fg_color=self.theme["white"], progress_color=self.theme["pink"])
         self._camera_char_growth.pack(pady=(2, 0))
         self._camera_char_growth_label = ctk.CTkLabel(char_area, text="0%", font=self._make_font(10), text_color=self.theme["text_muted"])

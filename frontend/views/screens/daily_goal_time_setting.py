@@ -41,7 +41,7 @@ class DailyGoalTimeSettingScreenMixin:
 
         title = ctk.CTkLabel(
             top_bar, text="오늘의 목표 시간 입력",
-            font=self._make_font(20, "bold"),
+            font=self._make_font(20),
             text_color=self.theme["text"],
         )
         title.pack(side="left", padx=16)
@@ -101,7 +101,7 @@ class DailyGoalTimeSettingScreenMixin:
         hour_up.pack()
 
         self._daily_goal_hour_label = ctk.CTkLabel(
-            hour_col, text="0", font=self._make_font(36, "bold"), text_color=self.theme["text"],
+            hour_col, text="0", font=self._make_font(36), text_color=self.theme["text"],
         )
         self._daily_goal_hour_label.pack(pady=10)
 
@@ -136,7 +136,7 @@ class DailyGoalTimeSettingScreenMixin:
         min_up.pack()
 
         self._daily_goal_min_label = ctk.CTkLabel(
-            min_col, text="0", font=self._make_font(36, "bold"), text_color=self.theme["text"],
+            min_col, text="0", font=self._make_font(36), text_color=self.theme["text"],
         )
         self._daily_goal_min_label.pack(pady=10)
 
@@ -159,7 +159,7 @@ class DailyGoalTimeSettingScreenMixin:
         # 확인 버튼
         confirm_btn = ctk.CTkButton(
             left_panel, text="공부 시작!", width=200, height=44,
-            font=self._make_font(16, "bold"),
+            font=self._make_font(16),
             command=self._on_daily_goal_confirm,
             **self._accent_button_style(),
         )

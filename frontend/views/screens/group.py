@@ -27,7 +27,7 @@ class GroupScreenMixin:
             top,
             text="단체 공부",
             anchor="w",
-            font=self._make_font(20, "bold"),
+            font=self._make_font(20),
             text_color=self.theme["text"],
         ).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(MAIN),
@@ -96,7 +96,7 @@ class GroupScreenMixin:
         name_lbl = ctk.CTkLabel(
             item,
             text=name,
-            font=self._make_font(14, "bold"),
+            font=self._make_font(14),
             anchor="w",
             cursor="hand2",
             text_color=self.theme["text"],
@@ -124,7 +124,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
@@ -170,7 +170,7 @@ class GroupScreenMixin:
 
         self.join_submit_btn = ctk.CTkButton(
             form, text="참가하기", height=46, width=380,
-            command=self._on_join_submit, font=self._make_font(15, "bold"), **self._primary_button_style())
+            command=self._on_join_submit, font=self._make_font(15), **self._primary_button_style())
         self.join_submit_btn.pack(pady=(12, 28), padx=28)
 
     def _on_join_submit(self):
@@ -213,7 +213,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
@@ -259,7 +259,7 @@ class GroupScreenMixin:
 
         self.create_submit_btn = ctk.CTkButton(
             form, text="생성하기", height=46, width=380,
-            command=self._on_create_submit, font=self._make_font(15, "bold"), **self._primary_button_style())
+            command=self._on_create_submit, font=self._make_font(15), **self._primary_button_style())
         self.create_submit_btn.pack(pady=(12, 28), padx=28)
 
     def _on_create_submit(self):

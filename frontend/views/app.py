@@ -570,7 +570,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         box.pack(fill="both", expand=True)
 
         title_lbl = tk.Label(box, text=title, fg=self.theme["text"], bg=self.theme["white"],
-                             font=self._make_font(13, "bold"))
+                             font=self._make_font(13))
         title_lbl.pack(pady=(18, 6))
 
         msg_lbl = tk.Label(box, text=message, fg=self.theme["text_muted"], bg=self.theme["white"],
