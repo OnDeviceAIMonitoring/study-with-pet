@@ -134,8 +134,9 @@ class GroupScreenMixin:
         wrap.grid_rowconfigure(0, weight=1)
         wrap.grid_rowconfigure(2, weight=1)
 
-        form = ctk.CTkFrame(wrap, **self._surface_style())
-        form.grid(row=1, column=0, padx=40, pady=20)
+        self._join_form = ctk.CTkFrame(wrap, **self._surface_style())
+        self._join_form.grid(row=1, column=0, padx=40, pady=20)
+        form = self._join_form
 
         ctk.CTkLabel(form, text="방 이름", font=self._make_font(13), anchor="w", text_color=self.theme["text"]).pack(
             pady=(24, 4), padx=28, anchor="w")
@@ -222,8 +223,9 @@ class GroupScreenMixin:
         wrap.grid_rowconfigure(0, weight=1)
         wrap.grid_rowconfigure(2, weight=1)
 
-        form = ctk.CTkFrame(wrap, **self._surface_style())
-        form.grid(row=1, column=0, padx=40, pady=20)
+        self._create_form = ctk.CTkFrame(wrap, **self._surface_style())
+        self._create_form.grid(row=1, column=0, padx=40, pady=20)
+        form = self._create_form
 
         ctk.CTkLabel(form, text="방 이름", font=self._make_font(13), anchor="w", text_color=self.theme["text"]).pack(
             pady=(24, 4), padx=28, anchor="w")
@@ -293,17 +295,33 @@ class GroupScreenMixin:
     # ──────────────────────────────────────────────
 
     def _show_keyboard(self, entry):
-        """Entry 클릭 시 화상 키보드를 표시"""
+        """Entry 클릭 시 화상 키보드를 오른쪽 열에 표시하고 폼을 왼쪽으로 이동"""
         kb = getattr(self, "onscreen_keyboard", None)
         if kb is None:
             return
         # 이미 같은 Entry에 열려있으면 무시
         if kb.is_visible and kb._target_entry is entry:
             return
+        # 현재 화면의 폼을 왼쪽으로 이동
+        self._shift_form_left()
+        kb._on_hide_callback = self._restore_form_center  # 바깥 클릭 닫힘 시 폼 복원
         kb.show(entry)
 
     def _hide_keyboard(self):
-        """화상 키보드 숨기기"""
+        """화상 키보드 숨기고 폼을 중앙으로 복원"""
         kb = getattr(self, "onscreen_keyboard", None)
         if kb is not None and kb.is_visible:
             kb.hide()
+        self._restore_form_center()
+
+    def _shift_form_left(self):
+        """키보드 표시 시 폼을 왼쪽으로 밀기"""
+        for form in (getattr(self, "_join_form", None), getattr(self, "_create_form", None)):
+            if form is not None and form.winfo_ismapped():
+                form.grid_configure(padx=(20, 0), sticky="w")
+
+    def _restore_form_center(self):
+        """키보드 숨김 시 폼을 중앙으로 복원"""
+        for form in (getattr(self, "_join_form", None), getattr(self, "_create_form", None)):
+            if form is not None and form.winfo_ismapped():
+                form.grid_configure(padx=40, sticky="")

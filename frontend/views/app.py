@@ -379,6 +379,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         def _hide_all():
             for widget in self.container.winfo_children():
                 widget.pack_forget()
+                widget.place_forget()  # place()로 배치된 키보드도 함께 제거
         
         self.screen_manager.show(self.container, screen_id, _hide_all)
         self.current_screen = screen_id
