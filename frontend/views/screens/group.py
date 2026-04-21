@@ -43,6 +43,14 @@ class GroupScreenMixin:
         )
         self.group_list_scroll.pack(fill="both", expand=True, padx=20, pady=(8, 4))
 
+        self.group_list_error_label = ctk.CTkLabel(
+            frame,
+            text="",
+            font=self._make_font(12),
+            **self._error_text_style(),
+        )
+        self.group_list_error_label.pack(fill="x", padx=20, pady=(0, 4))
+
         bottom = ctk.CTkFrame(frame, fg_color="transparent")
         bottom.pack(fill="x", padx=20, pady=(4, 20))
         bottom.grid_columnconfigure((0, 1), weight=1)
@@ -62,6 +70,7 @@ class GroupScreenMixin:
         ).grid(row=0, column=1, padx=(6, 0), sticky="ew")
 
     def _refresh_group_list(self):
+        self.group_list_error_label.configure(text="")
         for widget in self.group_list_scroll.winfo_children():
             widget.destroy()
 
@@ -80,7 +89,7 @@ class GroupScreenMixin:
             self._add_room_item(room["name"], room["room_code"])
 
     def _add_room_item(self, name: str, room_code: str):
-        enter_fn = lambda rc=room_code, n=name: self._start_group_room_flow(rc, n)
+        enter_fn = lambda rc=room_code, n=name: self._on_group_list_room_click(n, rc)
 
         item = ctk.CTkFrame(
             self.group_list_scroll, height=60, corner_radius=8,
@@ -113,6 +122,26 @@ class GroupScreenMixin:
         arrow_lbl.pack(side="right", padx=4)
         arrow_lbl.bind("<Button-1>", lambda e, fn=enter_fn: fn())
 
+    def _on_group_list_room_click(self, name: str, room_code: str):
+        self.group_list_error_label.configure(text="")
+
+        def on_result(result, error):
+            if error:
+                self.group_list_error_label.configure(text=f"서버 오류: {error}")
+                return
+            if not result.get("ok"):
+                err_map = {
+                    "room_not_found": "방을 찾을 수 없습니다. 방 이름과 코드를 확인해주세요.",
+                    "name_and_code_required": "방 이름과 참가 코드를 확인해주세요.",
+                }
+                self.group_list_error_label.configure(
+                    text=err_map.get(result.get("error", ""), "참가 검증에 실패했습니다.")
+                )
+                return
+            self._start_group_room_flow(room_code, name)
+
+        self._call_api("/rooms/join", {"name": name, "room_code": room_code}, on_result)
+
     # ──────────────────────────────────────────────
     # screen_group_join : 단체방 참가 (GROUP_JOIN)
     # ──────────────────────────────────────────────
@@ -128,11 +157,12 @@ class GroupScreenMixin:
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
-        wrap = ctk.CTkFrame(frame, fg_color="transparent")
-        wrap.pack(fill="both", expand=True)
-        wrap.grid_columnconfigure(0, weight=1)
-        wrap.grid_rowconfigure(0, weight=1)
-        wrap.grid_rowconfigure(2, weight=1)
+        self._join_wrap = ctk.CTkFrame(frame, fg_color="transparent")
+        self._join_wrap.pack(fill="both", expand=True)
+        self._join_wrap.grid_columnconfigure(0, weight=1)
+        self._join_wrap.grid_rowconfigure(0, weight=1)
+        self._join_wrap.grid_rowconfigure(2, weight=1)
+        wrap = self._join_wrap
 
         self._join_form = ctk.CTkFrame(wrap, **self._surface_style())
         self._join_form.grid(row=1, column=0, padx=40, pady=20)
@@ -217,11 +247,12 @@ class GroupScreenMixin:
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
-        wrap = ctk.CTkFrame(frame, fg_color="transparent")
-        wrap.pack(fill="both", expand=True)
-        wrap.grid_columnconfigure(0, weight=1)
-        wrap.grid_rowconfigure(0, weight=1)
-        wrap.grid_rowconfigure(2, weight=1)
+        self._create_wrap = ctk.CTkFrame(frame, fg_color="transparent")
+        self._create_wrap.pack(fill="both", expand=True)
+        self._create_wrap.grid_columnconfigure(0, weight=1)
+        self._create_wrap.grid_rowconfigure(0, weight=1)
+        self._create_wrap.grid_rowconfigure(2, weight=1)
+        wrap = self._create_wrap
 
         self._create_form = ctk.CTkFrame(wrap, **self._surface_style())
         self._create_form.grid(row=1, column=0, padx=40, pady=20)
@@ -305,7 +336,9 @@ class GroupScreenMixin:
         # 현재 화면의 폼을 왼쪽으로 이동
         self._shift_form_left()
         kb._on_hide_callback = self._restore_form_center  # 바깥 클릭 닫힘 시 폼 복원
-        kb.show(entry)
+        # 현재 화면의 wrap(상단바 아래 영역)을 부모로 지정
+        parent_wrap = self._get_active_wrap()
+        kb.show(entry, parent=parent_wrap)
 
     def _hide_keyboard(self):
         """화상 키보드 숨기고 폼을 중앙으로 복원"""
@@ -314,11 +347,18 @@ class GroupScreenMixin:
             kb.hide()
         self._restore_form_center()
 
+    def _get_active_wrap(self):
+        """현재 표시 중인 화면의 wrap 프레임 반환"""
+        for wrap in (getattr(self, "_join_wrap", None), getattr(self, "_create_wrap", None)):
+            if wrap is not None and wrap.winfo_ismapped():
+                return wrap
+        return None
+
     def _shift_form_left(self):
         """키보드 표시 시 폼을 왼쪽으로 밀기"""
         for form in (getattr(self, "_join_form", None), getattr(self, "_create_form", None)):
             if form is not None and form.winfo_ismapped():
-                form.grid_configure(padx=(20, 0), sticky="w")
+                form.grid_configure(padx=(4, 0), sticky="w")
 
     def _restore_form_center(self):
         """키보드 숨김 시 폼을 중앙으로 복원"""
