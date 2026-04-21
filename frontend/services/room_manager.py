@@ -2,7 +2,7 @@
 사용자가 속한 단체방 목록 관리 모듈
 
 단체방 정보는 rooms.json에 저장됩니다.
-각 항목: {"name": str, "room_code": str}
+각 항목: {"id": int, "name": str, "room_code": str}
 """
 
 import json
@@ -29,15 +29,17 @@ def save_rooms(rooms: List[Dict]) -> None:
         json.dump(rooms, f, ensure_ascii=False, indent=2)
 
 
-def add_room(name: str, room_code: str) -> None:
-    """단체방을 목록에 추가합니다. 동일 코드가 있으면 이름을 갱신합니다."""
+def add_room(name: str, room_code: str, room_id: int) -> None:
+    """단체방을 목록에 추가합니다. 동일 id가 있으면 해당 항목을 갱신합니다."""
     rooms = load_rooms()
     for r in rooms:
-        if r["room_code"] == room_code:
+        if r.get("id") == room_id:
             r["name"] = name
+            r["room_code"] = room_code
             save_rooms(rooms)
             return
-    rooms.append({"name": name, "room_code": room_code})
+    room = {"id": room_id, "name": name, "room_code": room_code}
+    rooms.append(room)
     save_rooms(rooms)
 
 

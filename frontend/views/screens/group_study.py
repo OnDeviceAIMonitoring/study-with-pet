@@ -62,8 +62,8 @@ class GroupStudyMixin:
         self._group_char_growth = ctk.CTkProgressBar(
             char_area,
             width=120,
-            fg_color=self.theme["white"],
-            progress_color=self.theme["pink"],
+            fg_color=self.theme["gray_hover"],
+            progress_color=self.theme["pink_hover"],
         )
         self._group_char_growth.pack(pady=(2, 0))
 

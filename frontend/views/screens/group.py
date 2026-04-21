@@ -227,7 +227,7 @@ class GroupScreenMixin:
                 }
                 self.join_error_label.configure(text=err_map.get(result.get("error", ""), "참가에 실패했습니다."))
                 return
-            room_manager.add_room(name, code)
+            room_manager.add_room(name, code, result["id"])
             self._start_group_room_flow(code, name)
 
         self._call_api("/rooms/join", {"name": name, "room_code": code}, on_result)
@@ -316,7 +316,7 @@ class GroupScreenMixin:
                 }
                 self.create_error_label.configure(text=err_map.get(result.get("error", ""), "생성에 실패했습니다."))
                 return
-            room_manager.add_room(name, code)
+            room_manager.add_room(name, code, result["id"])
             self.show_screen(GROUP_LIST)
 
         self._call_api("/rooms/create", {"name": name, "room_code": code}, on_result)

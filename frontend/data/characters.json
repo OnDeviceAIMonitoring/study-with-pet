@@ -11,7 +11,7 @@
     "growth": 119,
     "id": "83564b77bdb142e2b94f0e5811f7f720",
     "created_at": "2026-04-20T00:46:37+00:00",
-    "last_accessed_at": "2026-04-21T02:30:01+00:00"
+    "last_accessed_at": "2026-04-21T06:02:00+00:00"
   },
   {
     "name": "maltese",
@@ -32,7 +32,7 @@
     "growth": 42,
     "id": "59052e2d030a446c9a05e4142c934044",
     "created_at": "2026-04-20T00:46:37+00:00",
-    "last_accessed_at": "2026-04-21T02:15:03+00:00"
+    "last_accessed_at": "2026-04-21T06:01:54+00:00"
   },
   {
     "name": "york",
@@ -43,10 +43,10 @@
   },
   {
     "name": "border_collie",
-    "growth": 80,
+    "growth": 90,
     "id": "9fe7fee57d704a36aaaad151e5b0e2f6",
     "created_at": "2026-04-20T00:46:37+00:00",
-    "last_accessed_at": "2026-04-20T00:46:37+00:00"
+    "last_accessed_at": "2026-04-21T06:02:19+00:00"
   },
   {
     "name": "border_collie",
@@ -78,10 +78,10 @@
   },
   {
     "name": "rabbit",
-    "growth": 202,
+    "growth": 236,
     "id": "c28d9543dca6493488caa388060e1ba8",
     "created_at": "2026-04-20T00:46:37+00:00",
-    "last_accessed_at": "2026-04-21T05:16:55+00:00"
+    "last_accessed_at": "2026-04-21T06:00:13+00:00"
   },
   {
     "id": "6f9b9dc6a30e4e7fa2373755a893c48e",
