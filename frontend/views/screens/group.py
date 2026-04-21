@@ -124,9 +124,12 @@ class GroupScreenMixin:
             if lbl is not None:
                 ss = data.get("study_seconds", 0)
                 gm = data.get("goal_minutes", 0)
-                s_min, s_sec = divmod(ss, 60)
-                g_h, g_m = divmod(gm, 60)
-                lbl.configure(text=f"{s_min:02d}:{s_sec:02d} / {g_h:02d}:{g_m:02d}")
+                s_h, s_rem = divmod(ss, 3600)
+                s_m, s_s = divmod(s_rem, 60)
+                g_total = gm * 60
+                g_h, g_rem = divmod(g_total, 3600)
+                g_m, g_s = divmod(g_rem, 60)
+                lbl.configure(text=f"{s_h:02d}:{s_m:02d}:{s_s:02d} / {g_h:02d}:{g_m:02d}:{g_s:02d}")
 
     def _add_room_item(self, room_id: int, name: str, room_code: str):
         enter_fn = lambda rc=room_code, n=name: self._on_group_list_room_click(n, rc)
@@ -157,7 +160,7 @@ class GroupScreenMixin:
         # 공부 시간 / 목표 시간 표시 (서버 조회 후 업데이트)
         study_lbl = ctk.CTkLabel(
             item,
-            text="--:-- / --:--",
+            text="--:--:-- / --:--:--",
             font=self._make_font(11),
             text_color=self.theme["text_muted"],
         )

@@ -102,16 +102,37 @@ class PersonalStudyMixin:
     # ── 세션 시작/종료 ───────────────────────────────────────
 
     def _start_personal_study_session(self):
+        # 이전 세션 데이터가 있으면 이어서 진행 (앱 수명 동안 유지)
+        if getattr(self, '_personal_session_preserved', False) and self.personal_study_state.elapsed_seconds > 0:
+            self.personal_study_state.timer_running = True
+            # 시작 시간을 elapsed만큼 과거로 보정
+            self.personal_study_state.start_time = time.time() - self.personal_study_state.elapsed_seconds
+            self._personal_paused = False
+            self._personal_pause_accumulated = 0
+            self._personal_pause_start = 0.0
+            self._personal_signal_pause_accumulated = 0.0
+            self._personal_signal_pause_start = 0.0
+            self._personal_signal_paused = False
+            # 호환성
+            self._study_timer_running = True
+            self._study_start_time = self.personal_study_state.start_time
+            self._study_elapsed_seconds = self.personal_study_state.elapsed_seconds
+            return
+
         self.personal_study_state.timer_running = True
         self.personal_study_state.start_time = time.time()
         self.personal_study_state.elapsed_seconds = 0
         self.personal_study_state.accumulated_points = 0
         self.personal_study_state.blocked_slots = set()
         self._personal_paused = False
-        self._personal_pause_accumulated = 0  # 일시정지 중 누적 시간
+        self._personal_pause_accumulated = 0  # 일시정지 중 누적 시간(수동)
         self._personal_pause_start = 0.0
+        self._personal_signal_pause_accumulated = 0.0  # 시그널에 의한 정지 누적
+        self._personal_signal_pause_start = 0.0
+        self._personal_signal_paused = False
         self._personal_goal_completed = False
         self._personal_goal_flash_count = 0
+        self._personal_session_preserved = True
         # 호환성
         self._study_timer_running = True
         self._study_start_time = time.time()
@@ -124,6 +145,7 @@ class PersonalStudyMixin:
         self._study_timer_running = False
         if save:
             self._save_study_minutes("personal", self.personal_study_state.elapsed_seconds)
+        # elapsed_seconds는 유지 (앱 수명 동안 재진입 시 이어서 진행)
 
     # ── 화면 빌드 ────────────────────────────────────────────
 
@@ -135,12 +157,13 @@ class PersonalStudyMixin:
         top.pack_propagate(False)
         ctk.CTkLabel(top, text="개인 공부", anchor="w", font=self._make_font(18), text_color=self.theme["text"]).pack(side="left", padx=16)
 
-        # 공부 시간 표시 (xx:xx / xx:xx 형태)
+        # 공부 시간 표시 (HH:MM:SS / HH:MM:SS 형태)
         goal_min = load_daily_goal(self.args.name) or 0
-        goal_h, goal_m = divmod(goal_min, 60)
-        goal_str = f"{goal_h:02d}:{goal_m:02d}"
+        g_h, g_rem = divmod(goal_min * 60, 3600)
+        g_m, g_s = divmod(g_rem, 60)
+        goal_str = f"{g_h:02d}:{g_m:02d}:{g_s:02d}"
         self._personal_goal_minutes = goal_min
-        self._study_time_label = ctk.CTkLabel(top, text=f"공부시간: 00:00 / {goal_str}", font=self._make_font(14), text_color=self.theme["text_muted"])
+        self._study_time_label = ctk.CTkLabel(top, text=f"공부시간: 00:00:00 / {goal_str}", font=self._make_font(14), text_color=self.theme["text_muted"])
         self._study_time_label.pack(side="left", padx=20)
 
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_camera_back,
@@ -158,14 +181,17 @@ class PersonalStudyMixin:
 
         # ── 일시정지/재생 버튼 (좌측 상단, 상단바 아래) ──
         self._personal_pause_btn = ctk.CTkButton(
-            frame, text="⏸ 일시정지", width=120, height=32,
-            font=self._make_font(12),
+            frame, text="⏸ 일시정지", width=140, height=44,
+            font=self._make_font(14),
             command=self._toggle_personal_pause,
             fg_color=self.theme["gray"],
             hover_color=self.theme["gray_hover"],
             text_color=self.theme["text"],
+            corner_radius=8,
+            border_width=1,
+            border_color=self.theme["sand"],
         )
-        self._personal_pause_btn.place(x=10, y=75)
+        self._personal_pause_btn.place(x=10, y=78)
 
         # ── 목표 달성 축하 라벨 (숨김 상태) ──
         self._personal_congrats_label = ctk.CTkLabel(
@@ -232,6 +258,16 @@ class PersonalStudyMixin:
         self._start_personal_study_session()
         self._load_camera_character_animation()
         self._update_study_timer()
+
+        # 이전에 목표 달성했으면 축하 표시 복원
+        if getattr(self, '_personal_goal_completed', False):
+            self._personal_progress_bar.configure(progress_color="#FFD700")
+            self._personal_congrats_label.configure(
+                text="🎉 축하합니다! 목표 시간을 모두 완료하였습니다! 🎉",
+                text_color="#FFD700",
+            )
+            self._personal_congrats_label.place(relx=0.5, rely=0.4, anchor="center")
+            self._personal_congrats_label.lift()
 
         # 고블린 오버레이 애니메이션 시작 (200ms)
         self._goblin_anim_running = True
@@ -467,7 +503,7 @@ class PersonalStudyMixin:
         self._camera_char_anim_running = False
         self._goblin_anim_running = False
         self._goblin_visible = False
-        self._personal_goal_completed = False
+        # elapsed_seconds는 유지 (_personal_session_preserved 활용)
         if hasattr(self, '_personal_congrats_label'):
             self._personal_congrats_label.place_forget()
         self.show_screen(MAIN)
@@ -503,18 +539,32 @@ class PersonalStudyMixin:
         if not self.personal_study_state.timer_running:
             return
 
-        # 일시정지 중에는 elapsed를 증가시키지 않음
-        if not self._personal_paused:
-            total_elapsed = time.time() - self.personal_study_state.start_time - self._personal_pause_accumulated
+        # 시그널에 의한 일시정지 처리
+        with self._camera_signal_lock:
+            sig = self._camera_current_signal
+        is_warning = sig in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS") and not self._personal_goal_completed
+        if is_warning and not self._personal_signal_paused:
+            self._personal_signal_paused = True
+            self._personal_signal_pause_start = time.time()
+        elif not is_warning and self._personal_signal_paused:
+            self._personal_signal_pause_accumulated += time.time() - self._personal_signal_pause_start
+            self._personal_signal_paused = False
+
+        # 일시정지 중(수동 또는 시그널)에는 elapsed를 증가시키지 않음
+        if not self._personal_paused and not self._personal_signal_paused:
+            total_pause = self._personal_pause_accumulated + self._personal_signal_pause_accumulated
+            total_elapsed = time.time() - self.personal_study_state.start_time - total_pause
             self.personal_study_state.elapsed_seconds = max(0, int(total_elapsed))
         self._study_elapsed_seconds = self.personal_study_state.elapsed_seconds  # 호환성
 
         elapsed = self.personal_study_state.elapsed_seconds
-        e_min, e_sec = divmod(elapsed, 60)
+        e_h, e_rem = divmod(elapsed, 3600)
+        e_m, e_s = divmod(e_rem, 60)
         goal_min = self._personal_goal_minutes
-        g_h, g_m = divmod(goal_min, 60)
-        goal_str = f"{g_h:02d}:{g_m:02d}"
-        self._study_time_label.configure(text=f"공부시간: {e_min:02d}:{e_sec:02d} / {goal_str}")
+        g_total = goal_min * 60
+        g_h, g_rem = divmod(g_total, 3600)
+        g_m, g_s = divmod(g_rem, 60)
+        self._study_time_label.configure(text=f"공부시간: {e_h:02d}:{e_m:02d}:{e_s:02d} / {g_h:02d}:{g_m:02d}:{g_s:02d}")
 
         # 목표 진행바 업데이트
         if goal_min > 0:
@@ -528,20 +578,17 @@ class PersonalStudyMixin:
             self._personal_progress_bar.configure(progress_color="#FFD700")
         elif self._personal_paused:
             self._personal_progress_bar.configure(progress_color="#A0A0A0")
+        elif is_warning:
+            self._personal_progress_bar.configure(progress_color="#D94A4A")
         else:
-            with self._camera_signal_lock:
-                sig = self._camera_current_signal
-            if sig in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS"):
-                self._personal_progress_bar.configure(progress_color="#D94A4A")
-            else:
-                self._personal_progress_bar.configure(progress_color="#4A90D9")
+            self._personal_progress_bar.configure(progress_color="#4A90D9")
 
         # 목표 달성 체크
         if not self._personal_goal_completed and goal_min > 0 and elapsed >= goal_min * 60:
             self._personal_goal_completed = True
             self._show_personal_congrats()
 
-        if not self._personal_paused:
+        if not self._personal_paused and not self._personal_signal_paused:
             self._tick_personal_study_growth()
         self.root.after(1000, self._update_study_timer)
 

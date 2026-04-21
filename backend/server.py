@@ -307,6 +307,16 @@ async def join_room(sid, data):
         room=room_code,
     )
 
+    # 현재 공부 현황을 참가한 클라이언트에게 즉시 전송
+    study_data = database.get_room_study(room_code)
+    all_studying = all(statuses.get(s) == "studying" for s in members)
+    await sio.emit("room_study_progress", {
+        "room_code": room_code,
+        "study_seconds": study_data["study_seconds"],
+        "goal_minutes": study_data["goal_minutes"],
+        "all_studying": all_studying,
+    }, to=sid)
+
     print(
         f"[join_room] sid={sid} nickname={nickname} "
         f"room={room_code} count={len(members)}/{ROOM_LIMIT}"

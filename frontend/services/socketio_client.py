@@ -36,13 +36,14 @@ def send_study_status(app, status: str):
     sio = getattr(app, "sio", None)
     if sio is None or not sio.connected:
         return
+    loop = getattr(app, "_sio_loop", None)
+    if loop is None or not loop.is_running():
+        return
     try:
-        loop = sio.eio._loop
-        if loop and loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                sio.emit("study_status", {"status": status}),
-                loop,
-            )
+        asyncio.run_coroutine_threadsafe(
+            sio.emit("study_status", {"status": status}),
+            loop,
+        )
     except Exception as exc:
         print(f"[viewer:ctk] study_status send error: {exc}")
 
@@ -68,6 +69,7 @@ def _cleanup_stale_frames(app, stale_seconds: float = 3.0):
 def _start_socketio_loop(app, generation: int):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    app._sio_loop = loop
     loop.run_until_complete(_socketio_main(app, generation))
 
 

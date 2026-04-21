@@ -26,13 +26,15 @@ class GroupStudyMixin:
         self.group_screen_title = ctk.CTkLabel(top, text="단체 공부", anchor="w", font=self._make_font(18), text_color=self.theme["text"])
         self.group_screen_title.pack(side="left", padx=16)
 
-        # 공부시간 라벨 (xx:xx / xx:xx 형태)
+        # 공부시간 라벨 (HH:MM:SS / HH:MM:SS 형태)
         room_code = getattr(self.args, 'room', '')
         goal_min = load_daily_goal(room_code) or 0
-        g_h, g_m = divmod(goal_min, 60)
-        goal_str = f"{g_h:02d}:{g_m:02d}"
+        g_total = goal_min * 60
+        g_h, g_rem = divmod(g_total, 3600)
+        g_m, g_s = divmod(g_rem, 60)
+        goal_str = f"{g_h:02d}:{g_m:02d}:{g_s:02d}"
         self._group_goal_minutes = goal_min
-        self._group_study_time_label = ctk.CTkLabel(top, text=f"공부시간: 00:00 / {goal_str}", font=self._make_font(14), text_color=self.theme["text_muted"])
+        self._group_study_time_label = ctk.CTkLabel(top, text=f"공부시간: 00:00:00 / {goal_str}", font=self._make_font(14), text_color=self.theme["text_muted"])
         self._group_study_time_label.pack(side="left", padx=20)
 
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_group_back,
@@ -50,14 +52,17 @@ class GroupStudyMixin:
 
         # ── 일시정지/재생 버튼 ──
         self._group_pause_btn = ctk.CTkButton(
-            frame, text="⏸ 일시정지", width=120, height=32,
-            font=self._make_font(12),
+            frame, text="⏸ 일시정지", width=140, height=44,
+            font=self._make_font(14),
             command=self._toggle_group_pause,
             fg_color=self.theme["gray"],
             hover_color=self.theme["gray_hover"],
             text_color=self.theme["text"],
+            corner_radius=8,
+            border_width=1,
+            border_color=self.theme["sand"],
         )
-        self._group_pause_btn.place(x=10, y=75)
+        self._group_pause_btn.place(x=10, y=78)
 
         # ── 목표 달성 축하 라벨 (숨김 상태) ──
         self._group_congrats_label = ctk.CTkLabel(
@@ -122,12 +127,14 @@ class GroupStudyMixin:
         self._group_study_elapsed_seconds = server_seconds
 
         elapsed = server_seconds
-        e_min, e_sec = divmod(elapsed, 60)
+        e_h, e_rem = divmod(elapsed, 3600)
+        e_m, e_s = divmod(e_rem, 60)
         goal_min = server_goal if server_goal > 0 else getattr(self, '_group_goal_minutes', 0)
-        g_h, g_m = divmod(goal_min, 60)
-        goal_str = f"{g_h:02d}:{g_m:02d}"
+        g_total = goal_min * 60
+        g_h, g_rem = divmod(g_total, 3600)
+        g_m, g_s = divmod(g_rem, 60)
         if hasattr(self, '_group_study_time_label'):
-            self._group_study_time_label.configure(text=f"공부시간: {e_min:02d}:{e_sec:02d} / {goal_str}")
+            self._group_study_time_label.configure(text=f"공부시간: {e_h:02d}:{e_m:02d}:{e_s:02d} / {g_h:02d}:{g_m:02d}:{g_s:02d}")
 
         # 목표 진행바 업데이트
         if hasattr(self, '_group_progress_bar') and goal_min > 0:
