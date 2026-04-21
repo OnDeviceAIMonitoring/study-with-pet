@@ -67,6 +67,8 @@ class StudyFlowMixin:
         self.group_screen_title.configure(text=f"단체 공부  ·  {room_name}")
         self._group_room_code_label.configure(text=f"#코드 {room_code}")
         self._start_group_study_session()
+        # 타이머 루프 재시작 (이전 세션 종료 시 중단되었으므로)
+        self._update_group_study_timer()
 
         # 현재 방의 목표/진행 값으로 초기화 (이전 방 데이터 잔존 방지)
         goal_min = load_daily_goal(room_code) or 0

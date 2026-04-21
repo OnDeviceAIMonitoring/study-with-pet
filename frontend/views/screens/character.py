@@ -150,16 +150,36 @@ class CharScreenMixin:
             growth_point = int(char.get('growth', 0))
             stage_idx = min(growth_point // STAGE_UNIT, 2)
             if stage_idx >= 2:
-                growth_ratio = 1.0
+                growth_percent = 100
+                prog_value = 1.0
             else:
                 growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
-                growth_ratio = growth_in_stage / STAGE_UNIT
-            detailed_percent = growth_ratio * 100
+                growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
+                prog_value = growth_in_stage / STAGE_UNIT
             stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
-            ctk.CTkLabel(card, text=f"{stage_text} / 성장률: {detailed_percent:.2f}%", font=self._make_font(11), text_color=self.theme["text_muted"]).pack()
+            ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
+            ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
             prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["gray_hover"], progress_color=self.theme["pink_hover"])
-            prog.set(growth_ratio)
-            prog.pack(pady=8)
+            prog.set(prog_value)
+            prog.pack(pady=(4, 2))
+
+            # 삭제 버튼
+            char_id = char.get("id")
+            def _delete_char(cid=char_id):
+                chars_all = load_characters(sort_by_last_accessed=False)
+                chars_all = [c for c in chars_all if c.get("id") != cid]
+                save_characters(chars_all)
+                self._rebuild_screen_char_list()
+            ctk.CTkButton(
+                card, text="삭제", width=60, height=24,
+                font=self._make_font(11),
+                fg_color="transparent",
+                hover_color=self.theme["sand"],
+                text_color=self.theme["error"],
+                border_width=1,
+                border_color=self.theme["sand"],
+                command=_delete_char,
+            ).pack(pady=(0, 6))
 
         if self._screen_char_list_anim_data:
             self._screen_char_list_anim_tick()
@@ -450,15 +470,17 @@ class CharScreenMixin:
                 growth_point = int(char.get('growth', 0))
                 stage_idx = min(growth_point // STAGE_UNIT, 2)
                 if stage_idx >= 2:
-                    growth_ratio = 1.0
+                    growth_percent = 100
+                    prog_value = 1.0
                 else:
                     growth_in_stage = growth_point - (stage_idx * STAGE_UNIT)
-                    growth_ratio = growth_in_stage / STAGE_UNIT
-                detailed_percent = growth_ratio * 100
+                    growth_percent = min(100, int(growth_in_stage * 100 / STAGE_UNIT))
+                    prog_value = growth_in_stage / STAGE_UNIT
                 stage_text = {'baby': '1단계', 'adult': '2단계', 'crown': '3단계'}.get(ctype, ctype)
-                ctk.CTkLabel(card, text=f"{stage_text} / 성장률: {detailed_percent:.2f}%", font=self._make_font(11), text_color=self.theme["text_muted"]).pack()
+                ctk.CTkLabel(card, text=f"{stage_text}", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
+                ctk.CTkLabel(card, text=f"성장도: {growth_percent}%", font=self._make_font(12), text_color=self.theme["text_muted"]).pack()
                 prog = ctk.CTkProgressBar(card, width=140, fg_color=self.theme["gray_hover"], progress_color=self.theme["pink_hover"])
-                prog.set(growth_ratio)
+                prog.set(prog_value)
                 prog.pack(pady=8)
         else:
             ctk.CTkLabel(content, text="보유한 캐릭터가 없습니다.", font=self._make_font(16), text_color=self.theme["text_muted"]).pack(pady=40)

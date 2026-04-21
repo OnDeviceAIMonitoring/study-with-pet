@@ -461,6 +461,14 @@ class PersonalStudyMixin:
         if not getattr(self, '_goblin_anim_running', False):
             return
 
+        # 일시정지 또는 목표 달성 시 경고 말풍선 숨기기
+        if getattr(self, '_personal_paused', False) or getattr(self, '_personal_goal_completed', False):
+            if self._bubble_visible:
+                self._bubble_frame.place_forget()
+                self._bubble_visible = False
+            self.root.after(200, self._encourage_bubble_tick)
+            return
+
         with self._camera_signal_lock:
             current_signal = self._camera_current_signal
 
