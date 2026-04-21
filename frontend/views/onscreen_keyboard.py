@@ -1,7 +1,7 @@
 """
 화상 키보드(On-Screen Keyboard) 위젯
 
-CTkEntry를 클릭하면 화면 오른쪽에 키보드가 표시되어
+CTkEntry를 클릭하면 화면 오른쪽 열에 키보드가 오버레이되어
 마우스/터치로 텍스트를 입력할 수 있다.
 """
 
@@ -38,9 +38,12 @@ _LAYOUT_KO_SHIFT = [
     ["한/영", "SPACE", "완료"],
 ]
 
+# 키보드 패널 폭 (px)
+KB_WIDTH = 380
+
 
 class OnScreenKeyboard(ctk.CTkFrame):
-    """화면 오른쪽에 표시되는 가상 키보드"""
+    """화면 오른쪽 열에 place()로 오버레이되는 가상 키보드"""
 
     def __init__(self, master, theme: dict, make_font, **kwargs):
         super().__init__(master, **kwargs)
@@ -49,8 +52,10 @@ class OnScreenKeyboard(ctk.CTkFrame):
         self._target_entry = None  # 현재 입력 대상 Entry
         self._shifted = False
         self._korean = False
-        self._key_buttons = []  # 버튼 참조 보관
-        self.configure(width=380)
+        self._key_buttons = []
+        self._dismiss_bind_id = None  # 바깥 클릭 바인딩 ID
+        self._on_hide_callback = None  # 키보드 닫힐 때 호출되는 콜백
+        self.configure(width=KB_WIDTH)
         self._build_keys()
 
     def _get_layout(self):
@@ -61,7 +66,6 @@ class OnScreenKeyboard(ctk.CTkFrame):
 
     def _build_keys(self):
         """키 버튼 생성"""
-        # 기존 버튼 제거
         for btn in self._key_buttons:
             btn.destroy()
         self._key_buttons.clear()
@@ -72,10 +76,9 @@ class OnScreenKeyboard(ctk.CTkFrame):
 
         for row_keys in layout:
             row_frame = ctk.CTkFrame(self, fg_color="transparent")
-            row_frame.pack(pady=2)
+            row_frame.pack(pady=2, anchor="center")
 
             for key in row_keys:
-                # 특수 키 너비 조정 (오른쪽 패널에 맞게 축소)
                 if key == "SPACE":
                     w, text = 140, " "
                 elif key == "⌫":
@@ -113,40 +116,73 @@ class OnScreenKeyboard(ctk.CTkFrame):
             return
 
         if key == "⌫":
-            # 백스페이스
             current = entry.get()
             if current:
                 entry.delete(len(current) - 1, "end")
         elif key == "⇧":
-            # Shift 토글
             self._shifted = not self._shifted
             self._build_keys()
         elif key == "한/영":
-            # 한/영 전환
             self._korean = not self._korean
             self._shifted = False
             self._build_keys()
         elif key == "완료":
-            # 키보드 닫기
             self.hide()
         elif key == "SPACE":
             entry.insert("end", " ")
         else:
             entry.insert("end", key)
 
+    def _on_root_click(self, event):
+        """루트 윈도우 클릭 — 키보드 바깥이면 닫기"""
+        if not self.is_visible:
+            return
+        # 클릭된 위젯이 키보드 내부인지 확인
+        try:
+            w = event.widget
+            while w is not None:
+                if w is self:
+                    return  # 키보드 내부 클릭 → 무시
+                # 타겟 Entry 클릭도 무시
+                if w is self._target_entry:
+                    return
+                w = w.master
+        except Exception:
+            pass
+        self.hide()
+
     def show(self, target_entry):
-        """특정 Entry에 대해 키보드를 오른쪽에 표시"""
+        """Entry 오른쪽 열에 키보드를 place()로 표시"""
         self._target_entry = target_entry
         self._shifted = False
         self._korean = False
         self._build_keys()
-        self.pack_propagate(False)
-        self.pack(side="right", fill="y", padx=(4, 10), pady=10)
+
+        # place: 부모(container) 오른쪽에 고정, 세로 중앙
+        self.configure(width=KB_WIDTH)
+        self.place(relx=1.0, rely=0.5, anchor="e", relheight=0.92)
+        self.lift()  # 다른 위젯 위에 표시
+
+        # 바깥 클릭 감지 바인딩
+        root = self.winfo_toplevel()
+        if self._dismiss_bind_id is None:
+            self._dismiss_bind_id = root.bind("<Button-1>", self._on_root_click, add="+")
 
     def hide(self):
         """키보드 숨기기"""
         self._target_entry = None
-        self.pack_forget()
+        self.place_forget()
+        # 바깥 클릭 바인딩 해제
+        if self._dismiss_bind_id is not None:
+            try:
+                root = self.winfo_toplevel()
+                root.unbind("<Button-1>", self._dismiss_bind_id)
+            except Exception:
+                pass
+            self._dismiss_bind_id = None
+        # 닫힘 콜백 호출 (폼 위치 복원 등)
+        if self._on_hide_callback is not None:
+            self._on_hide_callback()
 
     @property
     def is_visible(self):

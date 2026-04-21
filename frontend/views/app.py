@@ -47,7 +47,7 @@ from .states import CameraState, PersonalStudyState, GroupStudyState, Navigation
 from .screen_manager import ScreenManager
 from .onscreen_keyboard import OnScreenKeyboard
 from .layouts import compose_grid, compose_group, compose_others_column
-from .frame_utils import build_waiting_frame, draw_rect_border, CAMERA_BORDER_BGR
+from .frame_utils import build_waiting_frame, draw_rect_border, draw_label, CAMERA_BORDER_BGR
 
 
 class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMixin, GroupStudyMixin, PersonalStudyMixin, StudyGrowthMixin, CameraScreenMixin, DailyGoalTimeSettingScreenMixin):
@@ -379,6 +379,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         def _hide_all():
             for widget in self.container.winfo_children():
                 widget.pack_forget()
+                widget.place_forget()  # place()로 배치된 키보드도 함께 제거
         
         self.screen_manager.show(self.container, screen_id, _hide_all)
         self.current_screen = screen_id
@@ -452,6 +453,15 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                 main_canvas = build_waiting_frame(self.args.canvas_width, self.args.canvas_height)
             else:
                 main_canvas = local_frame
+
+            main_canvas = draw_label(
+                main_canvas,
+                self.args.name,
+                True,
+                datetime.now().isoformat(timespec="seconds"),
+                draw_border=False,
+                label_style="group",
+            )
 
             draw_rect_border(main_canvas, color=CAMERA_BORDER_BGR, thickness=4)
 
@@ -558,7 +568,7 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
         box.pack(fill="both", expand=True)
 
         title_lbl = tk.Label(box, text=title, fg=self.theme["text"], bg=self.theme["white"],
-                             font=self._make_font(13, "bold"))
+                             font=self._make_font(13))
         title_lbl.pack(pady=(18, 6))
 
         msg_lbl = tk.Label(box, text=message, fg=self.theme["text_muted"], bg=self.theme["white"],

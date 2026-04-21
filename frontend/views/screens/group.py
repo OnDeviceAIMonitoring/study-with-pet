@@ -27,7 +27,7 @@ class GroupScreenMixin:
             top,
             text="단체 공부",
             anchor="w",
-            font=self._make_font(20, "bold"),
+            font=self._make_font(20),
             text_color=self.theme["text"],
         ).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(MAIN),
@@ -96,7 +96,7 @@ class GroupScreenMixin:
         name_lbl = ctk.CTkLabel(
             item,
             text=name,
-            font=self._make_font(14, "bold"),
+            font=self._make_font(14),
             anchor="w",
             cursor="hand2",
             text_color=self.theme["text"],
@@ -124,7 +124,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkLabel(top, text="단체방 참가하기", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
@@ -134,8 +134,9 @@ class GroupScreenMixin:
         wrap.grid_rowconfigure(0, weight=1)
         wrap.grid_rowconfigure(2, weight=1)
 
-        form = ctk.CTkFrame(wrap, **self._surface_style())
-        form.grid(row=1, column=0, padx=40, pady=20)
+        self._join_form = ctk.CTkFrame(wrap, **self._surface_style())
+        self._join_form.grid(row=1, column=0, padx=40, pady=20)
+        form = self._join_form
 
         ctk.CTkLabel(form, text="방 이름", font=self._make_font(13), anchor="w", text_color=self.theme["text"]).pack(
             pady=(24, 4), padx=28, anchor="w")
@@ -169,7 +170,7 @@ class GroupScreenMixin:
 
         self.join_submit_btn = ctk.CTkButton(
             form, text="참가하기", height=46, width=380,
-            command=self._on_join_submit, font=self._make_font(15, "bold"), **self._primary_button_style())
+            command=self._on_join_submit, font=self._make_font(15), **self._primary_button_style())
         self.join_submit_btn.pack(pady=(12, 28), padx=28)
 
     def _on_join_submit(self):
@@ -212,7 +213,7 @@ class GroupScreenMixin:
         top = ctk.CTkFrame(frame, fg_color=self.theme["beige"], border_width=0, corner_radius=0, height=60)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
-        ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20, "bold"), text_color=self.theme["text"]).pack(side="left", padx=16)
+        ctk.CTkLabel(top, text="단체방 생성하기", anchor="w", font=self._make_font(20), text_color=self.theme["text"]).pack(side="left", padx=16)
         ctk.CTkButton(top, text="뒤로가기", width=80, height=36, command=lambda: self.show_screen(GROUP_LIST),
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
 
@@ -222,8 +223,9 @@ class GroupScreenMixin:
         wrap.grid_rowconfigure(0, weight=1)
         wrap.grid_rowconfigure(2, weight=1)
 
-        form = ctk.CTkFrame(wrap, **self._surface_style())
-        form.grid(row=1, column=0, padx=40, pady=20)
+        self._create_form = ctk.CTkFrame(wrap, **self._surface_style())
+        self._create_form.grid(row=1, column=0, padx=40, pady=20)
+        form = self._create_form
 
         ctk.CTkLabel(form, text="방 이름", font=self._make_font(13), anchor="w", text_color=self.theme["text"]).pack(
             pady=(24, 4), padx=28, anchor="w")
@@ -257,7 +259,7 @@ class GroupScreenMixin:
 
         self.create_submit_btn = ctk.CTkButton(
             form, text="생성하기", height=46, width=380,
-            command=self._on_create_submit, font=self._make_font(15, "bold"), **self._primary_button_style())
+            command=self._on_create_submit, font=self._make_font(15), **self._primary_button_style())
         self.create_submit_btn.pack(pady=(12, 28), padx=28)
 
     def _on_create_submit(self):
@@ -293,17 +295,33 @@ class GroupScreenMixin:
     # ──────────────────────────────────────────────
 
     def _show_keyboard(self, entry):
-        """Entry 클릭 시 화상 키보드를 표시"""
+        """Entry 클릭 시 화상 키보드를 오른쪽 열에 표시하고 폼을 왼쪽으로 이동"""
         kb = getattr(self, "onscreen_keyboard", None)
         if kb is None:
             return
         # 이미 같은 Entry에 열려있으면 무시
         if kb.is_visible and kb._target_entry is entry:
             return
+        # 현재 화면의 폼을 왼쪽으로 이동
+        self._shift_form_left()
+        kb._on_hide_callback = self._restore_form_center  # 바깥 클릭 닫힘 시 폼 복원
         kb.show(entry)
 
     def _hide_keyboard(self):
-        """화상 키보드 숨기기"""
+        """화상 키보드 숨기고 폼을 중앙으로 복원"""
         kb = getattr(self, "onscreen_keyboard", None)
         if kb is not None and kb.is_visible:
             kb.hide()
+        self._restore_form_center()
+
+    def _shift_form_left(self):
+        """키보드 표시 시 폼을 왼쪽으로 밀기"""
+        for form in (getattr(self, "_join_form", None), getattr(self, "_create_form", None)):
+            if form is not None and form.winfo_ismapped():
+                form.grid_configure(padx=(20, 0), sticky="w")
+
+    def _restore_form_center(self):
+        """키보드 숨김 시 폼을 중앙으로 복원"""
+        for form in (getattr(self, "_join_form", None), getattr(self, "_create_form", None)):
+            if form is not None and form.winfo_ismapped():
+                form.grid_configure(padx=40, sticky="")
