@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from config import GROUP_LIST
 from services.camera_signals import DEFAULT_ANIM
+from services.room_manager import load_rooms
 from services.study_time import load_daily_goal
 from services import socketio_client
 
@@ -31,7 +32,14 @@ class GroupStudyMixin:
 
         # 공부시간 라벨 (HH:MM:SS / HH:MM:SS 형태)
         room_code = getattr(self.args, 'room', '')
-        goal_min = load_daily_goal(room_code) or 0
+        # room_id를 저장하고 있는 _daily_goal_room_id 사용
+        if hasattr(self, '_daily_goal_room_id'):
+            room_id_key = str(self._daily_goal_room_id)
+        else:
+            # pending_group_room에서 room_id 추출
+            pending = getattr(self.nav_state, 'pending_group_room', None)
+            room_id_key = str(pending[2]) if pending and len(pending) > 2 else room_code
+        goal_min = load_daily_goal(room_id_key) or 0
         g_total = goal_min * 60
         g_h, g_rem = divmod(g_total, 3600)
         g_m, g_s = divmod(g_rem, 60)

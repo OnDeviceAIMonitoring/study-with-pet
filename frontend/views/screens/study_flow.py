@@ -14,17 +14,19 @@ class StudyFlowMixin:
 
     # ── 그룹 플로우 ─────────────────────────────────────────
 
-    def _start_group_room_flow(self, room_code: str, room_name: str):
+    def _start_group_room_flow(self, room_code: str, room_name: str, room_id: int):
         """캐릭터 선택 화면을 거쳐 단체방에 입장합니다."""
-        self.nav_state.pending_group_room = (room_code, room_name)
+        self.nav_state.pending_group_room = (room_code, room_name, room_id)
         self._pending_group_room = (room_code, room_name)  # 호환성
 
         # 단체방 기준으로 오늘 목표 미설정 시 목표 입력 화면을 먼저 표시
-        if load_daily_goal(room_code) is None:
-            self._daily_goal_key = room_code  # 저장 키: 방코드
+        if load_daily_goal(str(room_id)) is None:
+            self._daily_goal_key = str(room_id)  # 저장 키: 방id
+            self._daily_goal_room_id = room_id  # 서버 저장용 room_id
             self._daily_goal_next_action = self._continue_group_room_flow
             self.show_screen(DAILY_GOAL)
             return
+        self._daily_goal_room_id = room_id
         self._continue_group_room_flow()
 
     def _continue_group_room_flow(self):
@@ -33,19 +35,20 @@ class StudyFlowMixin:
         pending = self.nav_state.pending_group_room
         if pending:
             room_code = pending[0]
-            goal = load_daily_goal(room_code)
-            if goal is not None:
-                self._save_group_goal_to_server(room_code, goal)
+            room_id = pending[2] if len(pending) > 2 else None
+            goal = load_daily_goal(str(room_id))
+            if goal is not None and room_id is not None:
+                self._save_group_goal_to_server(room_id, goal)
         self._screen_char_select_page = 0
         self._refresh_char_select()
         self.show_screen(SELECT_CHAR)
 
-    def _save_group_goal_to_server(self, room_code: str, goal_minutes: int):
+    def _save_group_goal_to_server(self, room_id: int, goal_minutes: int):
         """서버에 단체방 목표 시간 저장 (비동기)."""
         def _worker():
             try:
                 url = f"{self.args.server}/rooms/goal"
-                data = json.dumps({"room_code": room_code, "goal_minutes": goal_minutes}).encode("utf-8")
+                data = json.dumps({"room_id": room_id, "goal_minutes": goal_minutes}).encode("utf-8")
                 req = urllib.request.Request(
                     url, data=data,
                     headers={"Content-Type": "application/json"},
@@ -56,10 +59,11 @@ class StudyFlowMixin:
                 print(f"[study_flow] goal save error: {exc}")
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _enter_group_room(self, room_code: str, room_name: str):
+    def _enter_group_room(self, room_code: str, room_name: str, room_id: int):
         """단체방 공부 세션을 시작합니다."""
         self._socket_generation += 1
         self.args.room = room_code
+        self._daily_goal_room_id = room_id  # room_id 저장
         with self.lock:
             self.frame_map.clear()
 
@@ -71,7 +75,8 @@ class StudyFlowMixin:
         self._update_group_study_timer()
 
         # 현재 방의 목표/진행 값으로 초기화 (이전 방 데이터 잔존 방지)
-        goal_min = load_daily_goal(room_code) or 0
+        room_id_key = str(room_id)
+        goal_min = load_daily_goal(room_id_key) or 0
         self._group_goal_minutes = goal_min
         self._group_server_study_seconds = 0
         self._group_server_goal_minutes = goal_min

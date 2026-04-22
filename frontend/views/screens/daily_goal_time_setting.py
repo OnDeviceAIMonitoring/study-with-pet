@@ -243,7 +243,7 @@ class DailyGoalTimeSettingScreenMixin:
         if total_minutes <= 0:
             total_minutes = 0  # 0분도 허용 (스킵과 동일)
 
-        # 목표 시간 저장 (개인=유저명, 단체=방코드)
+        # 목표 시간 저장 (개인=유저명, 단체=방id)
         goal_key = getattr(self, "_daily_goal_key", self.args.name)
         save_daily_goal(goal_key, total_minutes)
 

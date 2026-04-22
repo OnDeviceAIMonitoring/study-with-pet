@@ -2,10 +2,13 @@
 SQLite 데이터베이스 초기화 및 단체방 CRUD 모듈
 
 테이블:
-- rooms: id(PK), name(UNIQUE), room_code, created_at, goal_minutes, study_seconds
-    room_code는 유니크하지 않으며, id가 고유 식별자입니다.
-    goal_minutes: 오늘의 목표 시간(분)
-    study_seconds: 오늘까지 누적 공부 시간(초)
+- rooms: id(PK), name(UNIQUE), room_code, created_at
+    id가 고유 식별자입니다.
+- room_study: id(PK), room_id(FK to rooms.id), study_date, goal_minutes, study_seconds
+    room_id: 방의 고유 ID (rooms 테이블 참조)
+    study_date: YYYY-MM-DD 형식
+    goal_minutes: 목표 시간(분)
+    study_seconds: 누적 공부 시간(초)
 """
 
 import sqlite3
@@ -38,11 +41,12 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS room_study (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_code       TEXT    NOT NULL,
+                room_id         INTEGER NOT NULL,
                 study_date      TEXT    NOT NULL,
                 goal_minutes    INTEGER NOT NULL DEFAULT 0,
                 study_seconds   INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(room_code, study_date)
+                UNIQUE(room_id, study_date),
+                FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
             )
             """
         )
@@ -71,12 +75,6 @@ def create_room(name: str, room_code: str) -> dict:
             (name, room_code),
         )
         row_id = cur.lastrowid
-        # 동일 room_code로 오늘 날짜의 이전 공부 기록이 있으면 초기화
-        study_date = date.today().isoformat()
-        conn.execute(
-            "UPDATE room_study SET study_seconds = 0 WHERE room_code = ? AND study_date = ?",
-            (room_code, study_date),
-        )
     return {"id": row_id, "name": name, "room_code": room_code}
 
 
@@ -127,49 +125,49 @@ def list_rooms() -> list[dict]:
 # 단체방 공부 시간 추적
 # ──────────────────────────────────────────────
 
-def get_room_study(room_code: str, study_date: str = None) -> dict:
+def get_room_study(room_id: int, study_date: str = None) -> dict:
     """방의 오늘(또는 지정일) 공부 현황을 반환합니다."""
     if study_date is None:
         study_date = date.today().isoformat()
     with _connect() as conn:
         row = conn.execute(
-            "SELECT goal_minutes, study_seconds FROM room_study WHERE room_code = ? AND study_date = ?",
-            (room_code, study_date),
+            "SELECT goal_minutes, study_seconds FROM room_study WHERE room_id = ? AND study_date = ?",
+            (room_id, study_date),
         ).fetchone()
     if row is None:
         return {"goal_minutes": 0, "study_seconds": 0}
     return dict(row)
 
 
-def set_room_goal(room_code: str, goal_minutes: int, study_date: str = None) -> dict:
+def set_room_goal(room_id: int, goal_minutes: int, study_date: str = None) -> dict:
     """방의 오늘 목표 시간을 설정합니다."""
     if study_date is None:
         study_date = date.today().isoformat()
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO room_study (room_code, study_date, goal_minutes, study_seconds)
+            INSERT INTO room_study (room_id, study_date, goal_minutes, study_seconds)
             VALUES (?, ?, ?, 0)
-            ON CONFLICT(room_code, study_date)
+            ON CONFLICT(room_id, study_date)
             DO UPDATE SET goal_minutes = excluded.goal_minutes
             """,
-            (room_code, study_date, goal_minutes),
+            (room_id, study_date, goal_minutes),
         )
-    return {"room_code": room_code, "goal_minutes": goal_minutes, "study_date": study_date}
+    return {"room_id": room_id, "goal_minutes": goal_minutes, "study_date": study_date}
 
 
-def update_room_study_seconds(room_code: str, seconds: int, study_date: str = None) -> dict:
+def update_room_study_seconds(room_id: int, seconds: int, study_date: str = None) -> dict:
     """방의 오늘 공부 시간(초)을 업데이트합니다."""
     if study_date is None:
         study_date = date.today().isoformat()
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO room_study (room_code, study_date, goal_minutes, study_seconds)
+            INSERT INTO room_study (room_id, study_date, goal_minutes, study_seconds)
             VALUES (?, ?, 0, ?)
-            ON CONFLICT(room_code, study_date)
+            ON CONFLICT(room_id, study_date)
             DO UPDATE SET study_seconds = excluded.study_seconds
             """,
-            (room_code, study_date, seconds),
+            (room_id, study_date, seconds),
         )
-    return get_room_study(room_code, study_date)
+    return get_room_study(room_id, study_date)

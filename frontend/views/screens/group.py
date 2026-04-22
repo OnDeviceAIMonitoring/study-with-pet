@@ -101,7 +101,7 @@ class GroupScreenMixin:
         def _worker():
             for room in rooms:
                 try:
-                    url = f"{self.args.server}/rooms/{room['room_code']}/study"
+                    url = f"{self.args.server}/rooms/{room['id']}/study"
                     req = urllib.request.Request(url, method="GET")
                     with urllib.request.urlopen(req, timeout=5) as resp:
                         result = json.loads(resp.read().decode("utf-8"))
@@ -132,7 +132,7 @@ class GroupScreenMixin:
                 lbl.configure(text=f"{s_h:02d}:{s_m:02d}:{s_s:02d} / {g_h:02d}:{g_m:02d}:{g_s:02d}")
 
     def _add_room_item(self, room_id: int, name: str, room_code: str):
-        enter_fn = lambda rc=room_code, n=name: self._on_group_list_room_click(n, rc)
+        enter_fn = lambda rid=room_id, rc=room_code, n=name: self._on_group_list_room_click(rid, n, rc)
         delete_fn = lambda rid=room_id: self._remove_group_list_room(rid)
 
         item = ctk.CTkFrame(
@@ -186,7 +186,7 @@ class GroupScreenMixin:
         room_manager.remove_room(room_id)
         self._refresh_group_list()
 
-    def _on_group_list_room_click(self, name: str, room_code: str):
+    def _on_group_list_room_click(self, room_id: int, name: str, room_code: str):
         self.group_list_error_label.configure(text="")
 
         def on_result(result, error):
@@ -202,7 +202,7 @@ class GroupScreenMixin:
                     text=err_map.get(result.get("error", ""), "참가 검증에 실패했습니다.")
                 )
                 return
-            self._start_group_room_flow(room_code, name)
+            self._start_group_room_flow(room_code, name, room_id)
 
         self._call_api("/rooms/join", {"name": name, "room_code": room_code}, on_result)
 
@@ -292,7 +292,7 @@ class GroupScreenMixin:
                 self.join_error_label.configure(text=err_map.get(result.get("error", ""), "참가에 실패했습니다."))
                 return
             room_manager.add_room(name, code, result["id"])
-            self._start_group_room_flow(code, name)
+            self._start_group_room_flow(code, name, result["id"])
 
         self._call_api("/rooms/join", {"name": name, "room_code": code}, on_result)
 
@@ -382,7 +382,7 @@ class GroupScreenMixin:
                 return
             # 새 방 생성 성공: 로컈 daily_goal 초기화
             from services.study_time import clear_daily_goal
-            clear_daily_goal(code)
+            clear_daily_goal(str(result["id"]))
             room_manager.add_room(name, code, result["id"])
             self.show_screen(GROUP_LIST)
 
