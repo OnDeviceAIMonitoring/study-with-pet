@@ -244,7 +244,7 @@ class DailyGoalTimeSettingScreenMixin:
             self._show_info_dialog("안내", "목표 시간은 최소 1분 이상이어야 합니다.")
             return
 
-        # 목표 시간 저장 (개인=유저명, 단체=방코드)
+        # 목표 시간 저장 (개인=유저명, 단체=방id)
         goal_key = getattr(self, "_daily_goal_key", self.args.name)
         save_daily_goal(goal_key, total_minutes)
 

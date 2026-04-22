@@ -13,7 +13,7 @@ DAILY_GOAL_FILE = "frontend/data/daily_goal.json"
 def load_daily_goal(key: str):
     """오늘 설정된 목표 시간(분)을 반환. 미설정이면 None.
 
-    key는 개인 공부의 경우 유저명, 단체 공부의 경우 방코드(room_code).
+    key는 개인 공부의 경우 유저명, 단체 공부의 경우 방id(room_id).
     """
     today = date.today().isoformat()
     if not os.path.exists(DAILY_GOAL_FILE):
@@ -29,7 +29,7 @@ def load_daily_goal(key: str):
 def save_daily_goal(key: str, minutes: int):
     """오늘의 목표 시간(분)을 저장.
 
-    key는 개인 공부의 경우 유저명, 단체 공부의 경우 방코드(room_code).
+    key는 개인 공부의 경우 유저명, 단체 공부의 경우 방id(room_id).
     """
     today = date.today().isoformat()
     data = {}
@@ -67,7 +67,7 @@ def clear_daily_goal(key: str):
 def get_consecutive_goal_days(key: str) -> int:
     """목표를 연속으로 설정한 일수를 반환 (오늘 포함).
 
-    key는 개인 공부의 경우 유저명, 단체 공부의 경우 방코드(room_code).
+    key는 개인 공부의 경우 유저명, 단체 공부의 경우 방id(room_id).
     """
     if not os.path.exists(DAILY_GOAL_FILE):
         return 0
