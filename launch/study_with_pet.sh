@@ -11,7 +11,7 @@ ROOM="TEST_ROOM"
 source "$VENV"
 
 # 화상 키보드로 이름 입력 받기
-NAME=$(python "$PROJECT_DIR/name_input.py")
+NAME=$(python "$PROJECT_DIR/launch/name_input.py")
 if [[ $? -ne 0 || -z "$NAME" ]]; then
     echo "이름 입력이 취소되었습니다."
     exit 1
