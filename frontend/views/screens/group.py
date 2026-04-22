@@ -74,7 +74,7 @@ class GroupScreenMixin:
         for widget in self.group_list_scroll.winfo_children():
             widget.destroy()
 
-        rooms = room_manager.load_rooms()
+        rooms = room_manager.load_rooms(self.args.name)
         if not rooms:
             ctk.CTkLabel(
                 self.group_list_scroll,
@@ -183,7 +183,7 @@ class GroupScreenMixin:
         delete_btn.pack(side="right", padx=12)
 
     def _remove_group_list_room(self, room_id: int):
-        room_manager.remove_room(room_id)
+        room_manager.remove_room(self.args.name, room_id)
         self._refresh_group_list()
 
     def _on_group_list_room_click(self, room_id: int, name: str, room_code: str):
@@ -291,7 +291,7 @@ class GroupScreenMixin:
                 }
                 self.join_error_label.configure(text=err_map.get(result.get("error", ""), "참가에 실패했습니다."))
                 return
-            room_manager.add_room(name, code, result["id"])
+            room_manager.add_room(self.args.name, name, code, result["id"])
             self._start_group_room_flow(code, name, result["id"])
 
         self._call_api("/rooms/join", {"name": name, "room_code": code}, on_result)
@@ -383,7 +383,7 @@ class GroupScreenMixin:
             # 새 방 생성 성공: 로컈 daily_goal 초기화
             from services.study_time import clear_daily_goal
             clear_daily_goal(str(result["id"]))
-            room_manager.add_room(name, code, result["id"])
+            room_manager.add_room(self.args.name, name, code, result["id"])
             self.show_screen(GROUP_LIST)
 
         self._call_api("/rooms/create", {"name": name, "room_code": code}, on_result)
