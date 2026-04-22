@@ -185,13 +185,15 @@ class DrowsinessDetector(BaseDetector):
                 if (now - self.last_face_time) > _NO_FACE_SEC:
                     self.no_face_head_down = True
 
-        # ── 경로 B (사람이 화면 안에 있을 때만) ──
+        # ── 경로 B (사람이 화면 안에 있을 때만, 얼굴 소실 후 충분한 시간 경과 후) ──
         head_down_now = False
         if not self._face_visible and not self._person_out:
-            if self._pose_pitch is not None:
-                head_down_now = self._pose_pitch < self.normal_pitch - _HEAD_DOWN_OFFSET
-            else:
-                head_down_now = self.no_face_head_down
+            no_face_elapsed = now - self.last_face_time
+            if no_face_elapsed > _NO_FACE_SEC:
+                if self._pose_pitch is not None:
+                    head_down_now = self._pose_pitch < self.normal_pitch - _HEAD_DOWN_OFFSET
+                else:
+                    head_down_now = self.no_face_head_down
 
         if head_down_now:
             if self.head_down_start is None:
