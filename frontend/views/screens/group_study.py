@@ -13,7 +13,6 @@ from .personal_study import (
     _WARNING_MSGS, _WARNING_SHOW_SEC,
 )
 from services.camera_signals import DEFAULT_ANIM
-from services.study_time import load_daily_goal
 from services import socketio_client
 
 
@@ -35,8 +34,7 @@ class GroupStudyMixin:
         self._group_room_code_label.pack(side="left", padx=(0, 12))
 
         # 공부시간 라벨 (HH:MM:SS / HH:MM:SS 형태)
-        room_code = getattr(self.args, 'room', '')
-        goal_min = load_daily_goal(room_code) or 0
+        goal_min = getattr(self, '_group_server_goal_minutes', 0)
         g_total = goal_min * 60
         g_h, g_rem = divmod(g_total, 3600)
         g_m, g_s = divmod(g_rem, 60)
@@ -47,14 +45,6 @@ class GroupStudyMixin:
 
         ctk.CTkButton(top, text="나가기", width=110, height=36, command=self._on_group_back,
               font=self._make_font(14), **self._exit_button_style()).pack(side="right", padx=(0, 16), pady=0)
-
-        self._group_pause_btn = ctk.CTkButton(
-            top, text="|| 일시정지", width=110, height=36,
-            font=self._make_font(14),
-            command=self._toggle_group_pause,
-            **self._exit_button_style(),
-        )
-        self._group_pause_btn.pack(side="right", padx=(0, 8), pady=0)
 
         # ── 목표 시간 대비 진행 바 ──
         self._group_progress_bar = ctk.CTkProgressBar(
@@ -170,7 +160,7 @@ class GroupStudyMixin:
         if getattr(self, '_group_goal_completed', False):
             if hasattr(self, '_group_progress_bar'):
                 self._group_progress_bar.configure(progress_color="#FFD700")
-        elif getattr(self, '_group_paused', False) or not all_studying:
+        elif not all_studying:
             if hasattr(self, '_group_progress_bar'):
                 self._group_progress_bar.configure(progress_color="#A0A0A0")
         else:
@@ -198,9 +188,6 @@ class GroupStudyMixin:
         self.group_study_state.elapsed_seconds = 0
         self.group_study_state.accumulated_points = 0
         self.group_study_state.blocked_slots = set()
-        self._group_paused = False
-        self._group_pause_accumulated = 0
-        self._group_pause_start = 0.0
         self._group_goal_completed = False
         self._group_goal_flash_count = 0
         # 호환성
@@ -227,25 +214,6 @@ class GroupStudyMixin:
 
         if save:
             self._save_study_minutes("group", self.group_study_state.elapsed_seconds)
-
-    # ── 일시정지 토글 ───────────────────────────────────────
-
-    def _toggle_group_pause(self):
-        if getattr(self, '_group_goal_completed', False):
-            return
-        if self._group_paused:
-            pause_dur = time.time() - self._group_pause_start
-            self._group_pause_accumulated += pause_dur
-            self._group_paused = False
-            if hasattr(self, '_group_pause_btn'):
-                self._group_pause_btn.configure(text="|| 일시정지")
-            socketio_client.send_study_status(self, "studying")
-        else:
-            self._group_paused = True
-            self._group_pause_start = time.time()
-            if hasattr(self, '_group_pause_btn'):
-                self._group_pause_btn.configure(text="▶ 재개")
-            socketio_client.send_study_status(self, "paused")
 
     # ── 축하 이벤트 ─────────────────────────────────────────
 
@@ -276,8 +244,6 @@ class GroupStudyMixin:
     def _tick_group_study_growth(self):
         if not self.group_study_state.running:
             return
-        if getattr(self, '_group_paused', False):
-            return
 
         # OFF_TASK 등의 시그널이 있을 때 서버에 상태 전송
         with self._camera_signal_lock:
@@ -285,11 +251,11 @@ class GroupStudyMixin:
         if not getattr(self, '_group_goal_completed', False):
             if sig in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS"):
                 socketio_client.send_study_status(self, "off_task")
-            elif not getattr(self, '_group_paused', False):
+            else:
                 socketio_client.send_study_status(self, "studying")
 
         self.group_study_state.elapsed_seconds = max(0, int(
-            time.time() - self.group_study_state.start_time - getattr(self, '_group_pause_accumulated', 0)
+            time.time() - self.group_study_state.start_time
         ))
         self._group_study_elapsed_seconds = self.group_study_state.elapsed_seconds  # 호환성
         if self.group_study_state.char_idx < 0:
@@ -420,8 +386,8 @@ class GroupStudyMixin:
         if not getattr(self, '_group_goblin_anim_running', False):
             return
 
-        # 목표 달성 후 또는 일시정지 중에는 졸음 감지 무시
-        if getattr(self, '_group_goal_completed', False) or getattr(self, '_group_paused', False):
+        # 목표 달성 후에는 졸음 감지 무시
+        if getattr(self, '_group_goal_completed', False):
             if self._group_goblin_visible:
                 self._group_goblin_visible = False
             self.root.after(200, self._group_goblin_anim_tick)

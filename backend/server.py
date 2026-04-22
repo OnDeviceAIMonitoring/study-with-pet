@@ -29,6 +29,9 @@ from backend import database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.init_db()
+    # 서버 시작 시 ROOM_ID_MAP 초기화 (재시작 시 인메모리 맵 복원)
+    for room in database.list_rooms():
+        ROOM_ID_MAP[room["room_code"]] = room["id"]
     # 방별 공부 시간 틱 태스크 시작
     task = asyncio.create_task(_room_study_tick_loop())
     yield
@@ -45,7 +48,8 @@ async def _room_study_tick_loop():
         now = _time.time()
         for room_code, statuses in list(ROOM_STUDY_STATUS.items()):
             members = ROOM_MEMBERS.get(room_code, {})
-            if not members:
+            room_id = ROOM_ID_MAP.get(room_code)
+            if not members or room_id is None:
                 continue
             # 모든 참가자가 studying 상태인지 확인
             all_studying = all(
@@ -60,11 +64,11 @@ async def _room_study_tick_loop():
                     timer["accumulated"] += add_secs
                     timer["last_tick"] = now
                     # DB에 저장
-                    study_data = database.get_room_study(room_code)
+                    study_data = database.get_room_study(room_id)
                     new_total = study_data["study_seconds"] + add_secs
-                    database.update_room_study_seconds(room_code, new_total)
+                    database.update_room_study_seconds(room_id, new_total)
                     # 모든 참가자에게 진행 상황 브로드캐스트
-                    updated = database.get_room_study(room_code)
+                    updated = database.get_room_study(room_id)
                     await sio.emit("room_study_progress", {
                         "room_code": room_code,
                         "study_seconds": updated["study_seconds"],
@@ -74,7 +78,7 @@ async def _room_study_tick_loop():
             else:
                 timer["last_tick"] = now
                 # 공부가 멈춘 상태를 알림
-                study_data = database.get_room_study(room_code)
+                study_data = database.get_room_study(room_id)
                 await sio.emit("room_study_progress", {
                     "room_code": room_code,
                     "study_seconds": study_data["study_seconds"],
@@ -100,6 +104,9 @@ ROOM_STUDY_STATUS: Dict[str, Dict[str, str]] = {}
 # room_code -> {"last_tick": float, "accumulated": int}
 ROOM_STUDY_TIMER: Dict[str, dict] = {}
 
+# room_code -> room_id (database 참조용)
+ROOM_ID_MAP: Dict[str, int] = {}
+
 
 class _RoomPayload(BaseModel):
     name: str
@@ -107,7 +114,7 @@ class _RoomPayload(BaseModel):
 
 
 class _RoomGoalPayload(BaseModel):
-    room_code: str
+    room_id: int
     goal_minutes: int
 
 
@@ -125,6 +132,9 @@ async def create_room(payload: _RoomPayload) -> dict:
     if database.exists_room_name(name):
         return {"ok": False, "error": "room_name_exists"}
     room = database.create_room(name, room_code)
+    room_id = room["id"]
+    # room_code -> room_id 매핑 저장
+    ROOM_ID_MAP[room_code] = room_id
     # 인메모리 타이머도 초기화 (같은 room_code 재사용 시 잔여 데이터 제거)
     ROOM_STUDY_TIMER.pop(room_code, None)
     return {"ok": True, **room}
@@ -152,26 +162,29 @@ async def list_rooms() -> dict:
     """등록된 단체방 목록 조회 (공부 현황 포함)"""
     rooms = database.list_rooms()
     for room in rooms:
-        study = database.get_room_study(room["room_code"])
+        room_id = room["id"]
+        study = database.get_room_study(room_id)
         room["goal_minutes"] = study["goal_minutes"]
         room["study_seconds"] = study["study_seconds"]
+        # room_code -> room_id 매핑 업데이트
+        ROOM_ID_MAP[room["room_code"]] = room_id
     return {"ok": True, "rooms": rooms}
 
 
 @app.post("/rooms/goal")
 async def set_room_goal(payload: _RoomGoalPayload) -> dict:
     """단체방 목표 시간 설정"""
-    room_code = payload.room_code.strip()
-    if not room_code:
-        return {"ok": False, "error": "room_code_required"}
-    result = database.set_room_goal(room_code, payload.goal_minutes)
+    room_id = payload.room_id
+    if room_id is None or room_id <= 0:
+        return {"ok": False, "error": "room_id_required"}
+    result = database.set_room_goal(room_id, payload.goal_minutes)
     return {"ok": True, **result}
 
 
-@app.get("/rooms/{room_code}/study")
-async def get_room_study(room_code: str) -> dict:
+@app.get("/rooms/{room_id}/study")
+async def get_room_study(room_id: int) -> dict:
     """단체방 공부 현황 조회"""
-    study = database.get_room_study(room_code)
+    study = database.get_room_study(room_id)
     return {"ok": True, **study}
 
 
@@ -214,6 +227,7 @@ async def disconnect(sid):
         members.pop(sid, None)
         if not members:
             ROOM_MEMBERS.pop(room_code, None)
+            ROOM_ID_MAP.pop(room_code, None)
 
         # 공부 상태에서도 제거
         statuses = ROOM_STUDY_STATUS.get(room_code, {})
@@ -283,6 +297,12 @@ async def join_room(sid, data):
     }
     members[sid] = nickname
 
+    # room_code -> room_id 매핑 보장 (서버 재시작 시 복원)
+    if room_code not in ROOM_ID_MAP:
+        room_row = database.find_room_by_code(room_code)
+        if room_row:
+            ROOM_ID_MAP[room_code] = room_row["id"]
+
     # 공부 상태 초기화 (참가 시 studying 상태로 시작)
     statuses = ROOM_STUDY_STATUS.setdefault(room_code, {})
     statuses[sid] = "studying"
@@ -310,14 +330,16 @@ async def join_room(sid, data):
     )
 
     # 현재 공부 현황을 참가한 클라이언트에게 즉시 전송
-    study_data = database.get_room_study(room_code)
-    all_studying = all(statuses.get(s) == "studying" for s in members)
-    await sio.emit("room_study_progress", {
-        "room_code": room_code,
-        "study_seconds": study_data["study_seconds"],
-        "goal_minutes": study_data["goal_minutes"],
-        "all_studying": all_studying,
-    }, to=sid)
+    room_id = ROOM_ID_MAP.get(room_code)
+    if room_id is not None:
+        study_data = database.get_room_study(room_id)
+        all_studying = all(statuses.get(s) == "studying" for s in members)
+        await sio.emit("room_study_progress", {
+            "room_code": room_code,
+            "study_seconds": study_data["study_seconds"],
+            "goal_minutes": study_data["goal_minutes"],
+            "all_studying": all_studying,
+        }, to=sid)
 
     print(
         f"[join_room] sid={sid} nickname={nickname} "
