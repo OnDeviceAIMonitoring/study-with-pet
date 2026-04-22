@@ -36,6 +36,15 @@ def init_db() -> None:
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_name_unique ON rooms(name)"
         )
+
+        # room_study 테이블 마이그레이션: 이전 스키마(room_code)에서 새 스키마(room_id)로
+        # 기존 테이블이 room_code 컬럼을 사용하는 경우 삭제 후 재생성
+        cursor = conn.execute("PRAGMA table_info(room_study)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if columns and "room_code" in columns and "room_id" not in columns:
+            conn.execute("DROP TABLE room_study")
+            print("[database] room_study 테이블 마이그레이션: room_code → room_id (기존 데이터 초기화)")
+
         # 단체방 공부 시간 추적 테이블
         conn.execute(
             """
@@ -121,6 +130,18 @@ def list_rooms() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def find_room_by_code(room_code: str) -> dict | None:
+    """room_code로 방을 조회합니다. 없으면 None."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, name, room_code FROM rooms WHERE room_code = ? LIMIT 1",
+            (room_code,),
+        ).fetchone()
+    if row is None:
+        return None
+    return dict(row)
+
+
 # ──────────────────────────────────────────────
 # 단체방 공부 시간 추적
 # ──────────────────────────────────────────────
@@ -140,10 +161,21 @@ def get_room_study(room_id: int, study_date: str = None) -> dict:
 
 
 def set_room_goal(room_id: int, goal_minutes: int, study_date: str = None) -> dict:
-    """방의 오늘 목표 시간을 설정합니다."""
+    """방의 오늘 목표 시간을 설정합니다.
+    
+    이미 목표가 설정된 경우(값 > 0) 덮어쓰지 않습니다.
+    """
     if study_date is None:
         study_date = date.today().isoformat()
     with _connect() as conn:
+        # 기존 목표가 이미 설정되어 있는지 확인
+        row = conn.execute(
+            "SELECT goal_minutes FROM room_study WHERE room_id = ? AND study_date = ?",
+            (room_id, study_date),
+        ).fetchone()
+        if row and row["goal_minutes"] > 0:
+            # 이미 목표가 설정되어 있으면 덮어쓰지 않음
+            return {"room_id": room_id, "goal_minutes": row["goal_minutes"], "study_date": study_date}
         conn.execute(
             """
             INSERT INTO room_study (room_id, study_date, goal_minutes, study_seconds)

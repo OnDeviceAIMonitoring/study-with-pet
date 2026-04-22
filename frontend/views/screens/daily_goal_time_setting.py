@@ -128,7 +128,7 @@ class DailyGoalTimeSettingScreenMixin:
         min_up = ctk.CTkButton(
             min_col, text="▲", width=60, height=40,
             font=self._make_font(22),
-            command=lambda: self._on_daily_goal_adjust("min", 10),
+            command=lambda: self._on_daily_goal_adjust("min", 1),
             fg_color=self.theme["gray"],
             hover_color=self.theme["gray_hover"],
             text_color=self.theme["text"],
@@ -143,7 +143,7 @@ class DailyGoalTimeSettingScreenMixin:
         min_down = ctk.CTkButton(
             min_col, text="▼", width=60, height=40,
             font=self._make_font(22),
-            command=lambda: self._on_daily_goal_adjust("min", -10),
+            command=lambda: self._on_daily_goal_adjust("min", -1),
             fg_color=self.theme["gray"],
             hover_color=self.theme["gray_hover"],
             text_color=self.theme["text"],
@@ -234,14 +234,15 @@ class DailyGoalTimeSettingScreenMixin:
             self._daily_goal_hours = max(0, min(23, self._daily_goal_hours + delta))
             self._daily_goal_hour_label.configure(text=str(self._daily_goal_hours))
         else:
-            self._daily_goal_minutes = max(0, min(50, self._daily_goal_minutes + delta))
+            self._daily_goal_minutes = max(0, min(59, self._daily_goal_minutes + delta))
             self._daily_goal_min_label.configure(text=str(self._daily_goal_minutes))
 
     def _on_daily_goal_confirm(self):
         """목표 시간 확정 후 원래 흐름으로 복귀"""
         total_minutes = self._daily_goal_hours * 60 + self._daily_goal_minutes
         if total_minutes <= 0:
-            total_minutes = 0  # 0분도 허용 (스킵과 동일)
+            self._show_info_dialog("안내", "목표 시간은 최소 1분 이상이어야 합니다.")
+            return
 
         # 목표 시간 저장 (개인=유저명, 단체=방id)
         goal_key = getattr(self, "_daily_goal_key", self.args.name)

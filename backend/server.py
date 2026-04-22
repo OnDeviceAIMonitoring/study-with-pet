@@ -29,6 +29,9 @@ from backend import database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.init_db()
+    # 서버 시작 시 ROOM_ID_MAP 초기화 (재시작 시 인메모리 맵 복원)
+    for room in database.list_rooms():
+        ROOM_ID_MAP[room["room_code"]] = room["id"]
     # 방별 공부 시간 틱 태스크 시작
     task = asyncio.create_task(_room_study_tick_loop())
     yield
@@ -293,6 +296,12 @@ async def join_room(sid, data):
         "nickname": nickname,
     }
     members[sid] = nickname
+
+    # room_code -> room_id 매핑 보장 (서버 재시작 시 복원)
+    if room_code not in ROOM_ID_MAP:
+        room_row = database.find_room_by_code(room_code)
+        if room_row:
+            ROOM_ID_MAP[room_code] = room_row["id"]
 
     # 공부 상태 초기화 (참가 시 studying 상태로 시작)
     statuses = ROOM_STUDY_STATUS.setdefault(room_code, {})
