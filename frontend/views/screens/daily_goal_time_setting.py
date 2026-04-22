@@ -190,12 +190,13 @@ class DailyGoalTimeSettingScreenMixin:
             return
 
         char = chars[0]
-        name = char.get("name", "maltese")
+        # 에셋 디렉토리명은 breed(maltese, york 등)를 사용
+        breed = char.get("breed", "maltese")
         growth = char.get("growth", 0)
         stage = get_stage_name_from_growth(growth)
 
         anim_sets = load_character_animation_sets(
-            name, stage, target_w=160, anim_names=("happy",),
+            breed, stage, target_w=160, anim_names=("happy",),
         )
         frames = anim_sets.get("happy", [])
         if not frames:
