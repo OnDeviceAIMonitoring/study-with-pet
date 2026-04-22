@@ -447,6 +447,9 @@ class ViewerApp(MainScreenMixin, CharScreenMixin, GroupScreenMixin, StudyFlowMix
                     pil_rgba = pil.convert("RGBA")
                     gold = Image.new("RGBA", pil_rgba.size, (255, 215, 0, 35))
                     pil = Image.alpha_composite(pil_rgba, gold).convert("RGB")
+            # 일시정지 시 카메라 화면 불투명 회색 처리
+            if getattr(self, '_personal_paused', False):
+                pil = Image.new("RGB", pil.size, (80, 80, 80))
             ctk_img = ctk.CTkImage(light_image=pil, dark_image=pil, size=pil.size)
             self.img_label.configure(image=ctk_img)
 

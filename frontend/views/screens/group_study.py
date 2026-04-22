@@ -7,6 +7,11 @@ import threading
 import customtkinter as ctk
 
 from config import GROUP_LIST
+import random as _random
+from .personal_study import (
+    _ENCOURAGE_MSGS, _ENCOURAGE_INTERVAL, _ENCOURAGE_SHOW_SEC,
+    _WARNING_MSGS, _WARNING_SHOW_SEC,
+)
 from services.camera_signals import DEFAULT_ANIM
 from services.study_time import load_daily_goal
 from services import socketio_client
@@ -108,6 +113,25 @@ class GroupStudyMixin:
         self._group_char_growth.pack(pady=(2, 0))
         self._group_char_growth_label = ctk.CTkLabel(char_area, text="", font=self._make_font(10), text_color=self.theme["text_muted"])
         self._group_char_growth_label.pack(pady=(1, 0))
+
+        # 응원/경고 말풍선
+        self._grp_bubble_frame = ctk.CTkFrame(
+            frame, fg_color=self.theme["gray_hover"],
+            border_width=2, border_color="black",
+            corner_radius=4,
+        )
+        self._grp_bubble_label = ctk.CTkLabel(
+            self._grp_bubble_frame, text="", font=self._make_font(14),
+            text_color=self.theme["text"],
+            fg_color="transparent",
+        )
+        self._grp_bubble_label.pack(padx=14, pady=6)
+        self._grp_bubble_visible = False
+        self._grp_bubble_kind = None
+        self._grp_last_warning_time = time.time()
+        self._grp_bubble_hide_time = 0.0
+        self._grp_bubble_y = 0.0
+        self._grp_bubble_target_y = 0.0
 
         # 타이머 시작
         self._start_group_study_session()
@@ -367,6 +391,7 @@ class GroupStudyMixin:
         self._group_goblin_frame_idx = 0
         self._group_goblin_visible = False
         self._group_goblin_anim_tick()
+        self._grp_encourage_bubble_tick()
 
     def _group_char_anim_tick(self):
         if not self.group_study_state.char_anim_running:
@@ -424,3 +449,73 @@ class GroupStudyMixin:
                 self._group_goblin_visible = False
 
         self.root.after(200, self._group_goblin_anim_tick)
+
+    def _grp_encourage_bubble_tick(self):
+        """단체방 말풍선 표시/애니메이션 (200ms 틱)."""
+        if not getattr(self, '_group_goblin_anim_running', False):
+            return
+
+        # 목표 달성 또는 캘리브레이션 중 말풍선 숨김
+        if getattr(self, '_group_goal_completed', False) \
+                or getattr(self.camera_state, 'calibrating', False):
+            if self._grp_bubble_visible:
+                self._grp_bubble_frame.place_forget()
+                self._grp_bubble_visible = False
+            self.root.after(200, self._grp_encourage_bubble_tick)
+            return
+
+        with self._camera_signal_lock:
+            current_signal = self._camera_current_signal
+
+        _now = time.time()
+        is_warning = current_signal in ("DROWSINESS", "OFF_TASK", "LOW_FOCUS")
+
+        if is_warning:
+            self._grp_last_warning_time = _now
+            if self._grp_bubble_visible and self._grp_bubble_kind == "encourage":
+                self._grp_bubble_frame.place_forget()
+                self._grp_bubble_visible = False
+            if not self._grp_bubble_visible:
+                msgs = _WARNING_MSGS.get(current_signal, [])
+                if msgs:
+                    self._grp_show_bubble(_random.choice(msgs), 0, kind="warning")
+        else:
+            if self._grp_bubble_visible and self._grp_bubble_kind == "warning":
+                self._grp_bubble_frame.place_forget()
+                self._grp_bubble_visible = False
+            if not self._grp_bubble_visible and (_now - self._grp_last_warning_time) >= _ENCOURAGE_INTERVAL:
+                self._grp_show_bubble(_random.choice(_ENCOURAGE_MSGS), _ENCOURAGE_SHOW_SEC, kind="encourage")
+                self._grp_last_warning_time = _now
+
+        if self._grp_bubble_visible and self._grp_bubble_kind == "encourage":
+            if self._grp_bubble_y > self._grp_bubble_target_y:
+                self._grp_bubble_y -= 0.015
+                self._grp_bubble_frame.place_configure(rely=max(self._grp_bubble_y, self._grp_bubble_target_y))
+            if _now >= self._grp_bubble_hide_time:
+                self._grp_bubble_frame.place_forget()
+                self._grp_bubble_visible = False
+
+        self.root.after(200, self._grp_encourage_bubble_tick)
+
+    def _grp_show_bubble(self, msg: str, duration: float, kind: str = "encourage"):
+        """단체방 말풍선을 표시한다."""
+        if kind == "warning":
+            bg_color   = "#cc2222"
+            text_color = "#ffffff"
+            border     = "#880000"
+            self._grp_bubble_y = 0.52
+            self._grp_bubble_target_y = 0.52
+        else:
+            bg_color   = self.theme["white"]
+            text_color = self.theme["text"]
+            border     = "black"
+            self._grp_bubble_y = 0.52
+            self._grp_bubble_target_y = 0.08
+
+        self._grp_bubble_frame.configure(fg_color=bg_color, border_color=border)
+        self._grp_bubble_label.configure(text=f"  {msg}  ", text_color=text_color)
+        self._grp_bubble_frame.place(relx=0.05, rely=self._grp_bubble_y, anchor="sw")
+        self._grp_bubble_frame.lift()
+        self._grp_bubble_visible = True
+        self._grp_bubble_kind = kind
+        self._grp_bubble_hide_time = time.time() + duration if duration > 0 else float('inf')

@@ -35,7 +35,7 @@ _ENCOURAGE_MSGS = [
     "할 수 있어! 😊",
 ]
 _ENCOURAGE_INTERVAL = 10.0   # 초 (warning 없이 이 시간 유지 시 표시)
-_ENCOURAGE_SHOW_SEC = 6.0     # 말풍선 표시 시간
+_ENCOURAGE_SHOW_SEC = 4.5     # 말풍선 표시 시간
 _WARNING_SHOW_SEC  = 4.0      # 경고 말풍선 표시 시간
 _WARNING_COOLDOWN  = 8.0      # 같은 경고 반복 방지 쿨다운
 
@@ -461,8 +461,30 @@ class PersonalStudyMixin:
         if not getattr(self, '_goblin_anim_running', False):
             return
 
-        # 일시정지 또는 목표 달성 시 경고 말풍선 숨기기
-        if getattr(self, '_personal_paused', False) or getattr(self, '_personal_goal_completed', False):
+        # 일시정지 시 '기다리고 있어요' 말풍선 표시
+        if getattr(self, '_personal_paused', False):
+            if not self._bubble_visible or self._bubble_kind != "pause":
+                # 기존 말풍선 숨기고 대기 말풍선 표시
+                if self._bubble_visible:
+                    self._bubble_frame.place_forget()
+                    self._bubble_visible = False
+                self._bubble_frame.configure(fg_color=self.theme["white"], border_color="black")
+                self._bubble_label.configure(text="  기다리는 중~  ", text_color=self.theme["text"])
+                self._bubble_frame.place(relx=0.05, rely=0.52, anchor="sw")
+                self._bubble_frame.lift()
+                self._bubble_visible = True
+                self._bubble_kind = "pause"
+            self.root.after(200, self._encourage_bubble_tick)
+            return
+
+        # 일시정지 해제 시 대기 말풍선 제거
+        if self._bubble_visible and self._bubble_kind == "pause":
+            self._bubble_frame.place_forget()
+            self._bubble_visible = False
+
+        # 목표 달성 또는 캘리브레이션 시 말풍선 숨기기
+        if getattr(self, '_personal_goal_completed', False) \
+                or getattr(self.camera_state, 'calibrating', False):
             if self._bubble_visible:
                 self._bubble_frame.place_forget()
                 self._bubble_visible = False
@@ -514,13 +536,13 @@ class PersonalStudyMixin:
             bg_color   = "#cc2222"
             text_color = "#ffffff"
             border     = "#880000"
-            self._bubble_y = 0.55
-            self._bubble_target_y = 0.55
+            self._bubble_y = 0.52
+            self._bubble_target_y = 0.52
         else:
             bg_color   = self.theme["white"]
             text_color = self.theme["text"]
             border     = "black"
-            self._bubble_y = 0.62
+            self._bubble_y = 0.52
             self._bubble_target_y = 0.08
 
         self._bubble_frame.configure(fg_color=bg_color, border_color=border)
@@ -533,6 +555,19 @@ class PersonalStudyMixin:
 
     def _camera_char_anim_update(self):
         if not self._camera_char_anim_running:
+            return
+        # 일시정지 중에는 tail 애니메이션 유지
+        if getattr(self, '_personal_paused', False):
+            if self._camera_current_anim != DEFAULT_ANIM:
+                self._camera_current_anim = DEFAULT_ANIM
+                self._camera_char_frames = self._camera_anim_sets.get(DEFAULT_ANIM, [])
+                self._camera_char_frame_idx = 0
+            # tail 프레임 진행
+            frames = self._camera_char_frames
+            if frames:
+                self._camera_char_frame_idx = (self._camera_char_frame_idx + 1) % len(frames)
+                self._camera_char_label.configure(image=frames[self._camera_char_frame_idx])
+            self.root.after(500, self._camera_char_anim_update)
             return
         self._camera_current_anim, self._camera_char_frames, self._camera_char_frame_idx = \
             self._tick_signal_anim(

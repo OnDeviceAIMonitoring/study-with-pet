@@ -144,6 +144,7 @@ class CameraScreenMixin:
             _COUNTDOWN_SEC = 5.0
             _calib_start = time.time()
             _calibrating = True
+            self.camera_state.calibrating = True
 
             def _all_detectors_calibrated(dets) -> bool:
                 for det in dets:
@@ -256,14 +257,16 @@ class CameraScreenMixin:
 
                 if _calibrating:
                     elapsed = now - _calib_start
-                    for det in detectors_list:
-                        try:
-                            det.process_frame(frame, now, shared_mp)
-                        except Exception:
-                            pass
+                    if elapsed >= _INTRO_SEC:  # intro 시간 동안은 캘리브레이션 수집 안 함
+                        for det in detectors_list:
+                            try:
+                                det.process_frame(frame, now, shared_mp)
+                            except Exception:
+                                pass
                     _draw_calib_overlay(frame, elapsed)
                     if elapsed >= _CALIB_MIN_SEC and _all_detectors_calibrated(detectors_list):
                         _calibrating = False
+                        self.camera_state.calibrating = False
                     with self.lock:
                         self.camera_state.latest_frame = frame
                         self.latest_frame = frame  # 호환성

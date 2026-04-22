@@ -14,7 +14,7 @@ from .base import BaseDetector, Signal
 # ─────────────────────────────────────────────────────────────
 _EAR_THRESH_DOWN_INIT = 0.13
 _EAR_THRESH_UP_INIT   = 0.15
-_EAR_CONSEC_FRAMES    = 30
+_EAR_CONSEC_FRAMES    = 20
 _DEEP_EAR_THRESH_INIT = _EAR_THRESH_UP_INIT
 
 _CALIB_FRAMES      = 50
