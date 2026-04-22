@@ -185,7 +185,7 @@ class DailyGoalTimeSettingScreenMixin:
 
     def _load_daily_goal_character(self, parent):
         """선택된(또는 최근) 캐릭터의 happy 애니메이션을 로드"""
-        chars = load_characters(sort_by_last_accessed=True)
+        chars = load_characters(self.args.name, sort_by_last_accessed=True)
         if not chars:
             return
 

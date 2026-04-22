@@ -33,7 +33,7 @@ class CharScreenMixin:
         성장도는 누적 포인트로 저장 (단계 기준: STAGE_UNIT 포인트)
         단계: baby → adult → crown
         """
-        chars = load_characters(sort_by_last_accessed=False)
+        chars = load_characters(self.args.name, sort_by_last_accessed=False)
         char_idx = find_character_index(chars, char_ref)
         if char_idx < 0:
             return False
@@ -43,7 +43,7 @@ class CharScreenMixin:
         char["growth"] = growth  # 누적 포인트로 유지 (리셋하지 않음)
         chars[char_idx] = char
         touch_character(chars, char_ref)
-        save_characters(chars)
+        save_characters(self.args.name, chars)
         return True
 
     # ──────────────────────────────────────────────
@@ -64,7 +64,7 @@ class CharScreenMixin:
 
         middle = ctk.CTkFrame(frame, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=10, pady=10)
-        characters = load_characters(sort_by_last_accessed=True)
+        characters = load_characters(self.args.name, sort_by_last_accessed=True)
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)
@@ -166,9 +166,9 @@ class CharScreenMixin:
             # 삭제 버튼
             char_id = char.get("id")
             def _delete_char(cid=char_id):
-                chars_all = load_characters(sort_by_last_accessed=False)
+                chars_all = load_characters(self.args.name, sort_by_last_accessed=False)
                 chars_all = [c for c in chars_all if c.get("id") != cid]
-                save_characters(chars_all)
+                save_characters(self.args.name, chars_all)
                 self._rebuild_screen_char_list()
             ctk.CTkButton(
                 card, text="삭제", width=60, height=24,
@@ -290,10 +290,10 @@ class CharScreenMixin:
                 self._create_char_error_label.configure(text="이름을 입력해주세요.")
                 return
             self._create_char_error_label.configure(text="")
-            chars = load_characters(sort_by_last_accessed=False)
+            chars = load_characters(self.args.name, sort_by_last_accessed=False)
             sel_cand = visible_candidates[idx]
             chars.append(new_character(char_name, 0, breed=sel_cand["name"]))
-            save_characters(chars)
+            save_characters(self.args.name, chars)
             self.show_screen(SELECT_CHAR)
 
         for col, cand in enumerate(visible_candidates):
@@ -371,7 +371,7 @@ class CharScreenMixin:
         middle = ctk.CTkFrame(frame, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=10, pady=10)
 
-        characters = load_characters(sort_by_last_accessed=True)
+        characters = load_characters(self.args.name, sort_by_last_accessed=True)
 
         page_size = 3
         total_pages = max(1, (len(characters) + page_size - 1) // page_size)

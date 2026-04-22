@@ -138,7 +138,7 @@ class MainScreenMixin:
 
         # ── 캐릭터 라벨 (캐시된 프레임 사용) ──
         self.screen_main_characters = []
-        char_list = load_characters(sort_by_last_accessed=True)
+        char_list = load_characters(self.args.name, sort_by_last_accessed=True)
 
         candidates = []
         for char in char_list:

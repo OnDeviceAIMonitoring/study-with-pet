@@ -330,7 +330,7 @@ class PersonalStudyMixin:
             self._camera_char_id = char_id
             self.personal_study_state.char_id = char_id
             if touch_character(chars, char_id or char_ref):
-                save_characters(chars)
+                save_characters(self.args.name, chars)
         else:
             self._camera_char_id = None
             self.personal_study_state.char_id = None
