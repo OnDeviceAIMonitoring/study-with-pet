@@ -8,34 +8,34 @@ CTkEntry를 클릭하면 화면 오른쪽 열에 키보드가 오버레이되어
 import customtkinter as ctk
 
 
-# 키 레이아웃 (행 단위)
+# 키 레이아웃 (행 단위) — 쉬프트/한영/스페이스 제거
 _LAYOUT_LOWER = [
     list("1234567890"),
     list("qwertyuiop"),
     list("asdfghjkl"),
-    ["⇧"] + list("zxcvbnm") + ["⌫"],
-    ["한/영", "SPACE", "완료"],
+    list("zxcvbnm") + ["⌫"],
+    ["완료"],
 ]
 _LAYOUT_UPPER = [
     list("!@#$%^&*()"),
     list("QWERTYUIOP"),
     list("ASDFGHJKL"),
-    ["⇧"] + list("ZXCVBNM") + ["⌫"],
-    ["한/영", "SPACE", "완료"],
+    list("ZXCVBNM") + ["⌫"],
+    ["완료"],
 ]
 _LAYOUT_KO = [
     list("1234567890"),
     list("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ"),
     list("ㅁㄴㅇㄹㅎㅗㅓㅏㅣ"),
-    ["⇧"] + list("ㅋㅌㅊㅍㅠㅜㅡ") + ["⌫"],
-    ["한/영", "SPACE", "완료"],
+    list("ㅋㅌㅊㅍㅠㅜㅡ") + ["⌫"],
+    ["완료"],
 ]
 _LAYOUT_KO_SHIFT = [
     list("!@#$%^&*()"),
     list("ㅃㅉㄸㄲㅆㅛㅕㅑㅒㅖ"),
     list("ㅁㄴㅇㄹㅎㅗㅓㅏㅣ"),
-    ["⇧"] + list("ㅋㅌㅊㅍㅠㅜㅡ") + ["⌫"],
-    ["한/영", "SPACE", "완료"],
+    list("ㅋㅌㅊㅍㅠㅜㅡ") + ["⌫"],
+    ["완료"],
 ]
 
 # 키보드 패널 폭 (px)
