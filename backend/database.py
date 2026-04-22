@@ -36,6 +36,15 @@ def init_db() -> None:
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_name_unique ON rooms(name)"
         )
+
+        # room_study 테이블 마이그레이션: 이전 스키마(room_code)에서 새 스키마(room_id)로
+        # 기존 테이블이 room_code 컬럼을 사용하는 경우 삭제 후 재생성
+        cursor = conn.execute("PRAGMA table_info(room_study)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if columns and "room_code" in columns and "room_id" not in columns:
+            conn.execute("DROP TABLE room_study")
+            print("[database] room_study 테이블 마이그레이션: room_code → room_id (기존 데이터 초기화)")
+
         # 단체방 공부 시간 추적 테이블
         conn.execute(
             """
@@ -119,6 +128,18 @@ def list_rooms() -> list[dict]:
             "SELECT id, name, room_code, created_at FROM rooms ORDER BY id"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def find_room_by_code(room_code: str) -> dict | None:
+    """room_code로 방을 조회합니다. 없으면 None."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, name, room_code FROM rooms WHERE room_code = ? LIMIT 1",
+            (room_code,),
+        ).fetchone()
+    if row is None:
+        return None
+    return dict(row)
 
 
 # ──────────────────────────────────────────────
