@@ -8,7 +8,6 @@ import customtkinter as ctk
 
 from config import GROUP_LIST
 from services.camera_signals import DEFAULT_ANIM
-from services.study_time import load_daily_goal
 from services import socketio_client
 
 
@@ -30,8 +29,7 @@ class GroupStudyMixin:
         self._group_room_code_label.pack(side="left", padx=(0, 12))
 
         # 공부시간 라벨 (HH:MM:SS / HH:MM:SS 형태)
-        room_code = getattr(self.args, 'room', '')
-        goal_min = load_daily_goal(room_code) or 0
+        goal_min = getattr(self, '_group_server_goal_minutes', 0)
         g_total = goal_min * 60
         g_h, g_rem = divmod(g_total, 3600)
         g_m, g_s = divmod(g_rem, 60)

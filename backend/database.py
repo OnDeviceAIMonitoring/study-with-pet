@@ -142,10 +142,21 @@ def get_room_study(room_code: str, study_date: str = None) -> dict:
 
 
 def set_room_goal(room_code: str, goal_minutes: int, study_date: str = None) -> dict:
-    """방의 오늘 목표 시간을 설정합니다."""
+    """방의 오늘 목표 시간을 설정합니다.
+    
+    이미 목표가 설정된 경우(값 > 0) 덮어쓰지 않습니다.
+    """
     if study_date is None:
         study_date = date.today().isoformat()
     with _connect() as conn:
+        # 기존 목표가 이미 설정되어 있는지 확인
+        row = conn.execute(
+            "SELECT goal_minutes FROM room_study WHERE room_code = ? AND study_date = ?",
+            (room_code, study_date),
+        ).fetchone()
+        if row and row["goal_minutes"] > 0:
+            # 이미 목표가 설정되어 있으면 덮어쓰지 않음
+            return {"room_code": room_code, "goal_minutes": row["goal_minutes"], "study_date": study_date}
         conn.execute(
             """
             INSERT INTO room_study (room_code, study_date, goal_minutes, study_seconds)
