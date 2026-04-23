@@ -236,7 +236,7 @@ class GroupStudyMixin:
 
     def _show_group_congrats(self):
         self._group_congrats_label.configure(
-            text="🎉 축하합니다! 목표 시간을 모두 완료하였습니다! 🎉"
+            text="축하합니다! 목표 시간을 모두 완료하였습니다!"
         )
         self._group_congrats_label.place(relx=0.5, rely=0.4, anchor="center")
         self._group_congrats_label.lift()

@@ -293,7 +293,7 @@ class PersonalStudyMixin:
         if getattr(self, '_personal_goal_completed', False):
             self._personal_progress_bar.configure(progress_color="#FFD700")
             self._personal_congrats_label.configure(
-                text="🎉 축하합니다! 목표 시간을 모두 완료하였습니다! 🎉",
+                text=" 축하합니다! 목표 시간을 모두 완료하였습니다! ",
                 text_color="#FFD700",
             )
             self._personal_congrats_label.place(relx=0.5, rely=0.4, anchor="center")
@@ -709,7 +709,7 @@ class PersonalStudyMixin:
     def _show_personal_congrats(self):
         """목표 달성 축하 연출."""
         self._personal_congrats_label.configure(
-            text="🎉 축하합니다! 목표 시간을 모두 완료하였습니다! 🎉"
+            text=" 축하합니다! 목표 시간을 모두 완료하였습니다! "
         )
         self._personal_congrats_label.place(relx=0.5, rely=0.4, anchor="center")
         self._personal_congrats_label.lift()
