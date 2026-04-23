@@ -180,3 +180,10 @@ sudo fc-cache -fv
 - [detector_algorithm.md](detectors/detector_algorithm.md) — AI 탐지 알고리즘 상세 (졸음, 딴 짓, 산만함, 하트 — 수식 및 순서도 포함)
 - [pet.md](pet.md) — 펫 시스템 설계
 - [models/model.md](models/model.md) — ONNX 모델 다운로드 안내
+
+---
+
+## 👥 저자
+
+| <a href="https://github.com/Jaehwan0501"><img src="https://github.com/Jaehwan0501.png" width="80"/><br/>이재환</a> | <a href="https://github.com/Jeong-ae"><img src="https://github.com/Jeong-ae.png" width="80"/><br/>이정애</a> | <a href="https://github.com/rainshowerr"><img src="https://github.com/rainshowerr.png" width="80"/><br/>신서영</a> | <a href="https://github.com/CSEDTD"><img src="https://github.com/CSEDTD.png" width="80"/><br/>윤성우</a> |
+|:---:|:---:|:---:|:---:|
