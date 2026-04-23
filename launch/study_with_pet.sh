@@ -2,7 +2,7 @@
 # Study With Pet 런처
 # 바탕화면에서 더블 클릭하여 실행
 
-PROJECT_DIR="/home/willtek/work/pet"
+PROJECT_DIR="/home/willtek/work/study-with-pet"
 VENV="$PROJECT_DIR/.venv/bin/activate"
 SERVER="http://10.56.130.242:8000"
 ROOM="TEST_ROOM"
