@@ -236,6 +236,21 @@ class PersonalStudyMixin:
         self._camera_char_growth_label = ctk.CTkLabel(char_area, text="", font=self._make_font(10), text_color=self.theme["text_muted"])
         self._camera_char_growth_label.pack(pady=(1, 0))
 
+        # 디버그 패널 토글 버튼
+        self._debug_panel_visible = True
+        self._debug_toggle_btn = ctk.CTkButton(
+            char_area, text="Debug: ON", width=110, height=32,
+            font=self._make_font(12),
+            fg_color="#ffffff",
+            hover_color="#e0e0e0",
+            text_color="#333333",
+            border_width=1,
+            border_color="#000000",
+            corner_radius=4,
+            command=self._toggle_debug_panel,
+        )
+        self._debug_toggle_btn.pack(pady=(6, 0))
+
         # 응원 말풍선 (캐릭터 위 → 위로 떠오르는 연출)
         self._bubble_frame = ctk.CTkFrame(
             frame, fg_color=self.theme["gray_hover"],
@@ -288,6 +303,18 @@ class PersonalStudyMixin:
         self._goblin_anim_running = True
         self._goblin_anim_tick()
         self._encourage_bubble_tick()
+
+    # ── 디버그 패널 토글 ────────────────────────────────────
+
+    def _toggle_debug_panel(self):
+        self._debug_panel_visible = not self._debug_panel_visible
+        label = "Debug: ON" if self._debug_panel_visible else "Debug: OFF"
+        self._debug_toggle_btn.configure(text=label)        # 단체 공부 버튼도 동기화
+        if hasattr(self, '_grp_debug_toggle_btn'):
+            self._grp_debug_toggle_btn.configure(text=label)        # off_task 폰 박스 표시도 연동
+        det = getattr(self, '_off_task_detector', None)
+        if det is not None:
+            det.cfg.setdefault("visualization", {})["draw_phone_boxes"] = self._debug_panel_visible
 
     # ── 일시정지 토글 ───────────────────────────────────────
 

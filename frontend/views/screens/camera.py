@@ -29,11 +29,11 @@ except ImportError:
     print("[screen_camera] WARNING: detectors not found, signal detection disabled")
 
 
-_DEBUG_PANEL = True  # False로 바꾸면 디버그 패널 숨김
+_DEBUG_PANEL = True  # 기본값 (인스턴스 변수로 오버라이드 가능)
 
-def _draw_debug_panel(frame, detectors_list, top_signal, fps):
+def _draw_debug_panel(frame, detectors_list, top_signal, fps, show=None):
     """우측 상단에 모든 detector 상태를 표시하는 디버그 패널"""
-    if not _DEBUG_PANEL:
+    if not (show if show is not None else _DEBUG_PANEL):
         return
     h, w = frame.shape[:2]
     G, R = (0, 255, 0), (0, 0, 255)  # 초록 / 빨강
@@ -303,7 +303,8 @@ class CameraScreenMixin:
                     except Exception:
                         pass
 
-                _draw_debug_panel(frame, detectors_list, top_signal, fps)
+                _draw_debug_panel(frame, detectors_list, top_signal, fps,
+                                  show=getattr(self, '_debug_panel_visible', _DEBUG_PANEL))
 
                 is_warning = top_signal in ("DROWSINESS", "LOW_FOCUS", "OFF_TASK")
                 if is_warning:
@@ -366,6 +367,7 @@ class CameraScreenMixin:
         if _DETECTORS_AVAILABLE:
             try:
                 off_task_det = OffTaskDetector()
+                self._off_task_detector = off_task_det
                 drowsiness_det = DrowsinessDetector()
                 drowsiness_det.off_task_detector = off_task_det
                 detectors_list = [
