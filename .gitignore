@@ -28,3 +28,7 @@ frontend/data/rooms.json
 frontend/data/study_time.json
 frontend/data/characters.json
 backend/pet.db
+
+# model
+*.onnx
+*.pt
