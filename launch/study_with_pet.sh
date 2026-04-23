@@ -4,7 +4,7 @@
 
 PROJECT_DIR="/home/willtek/work/study-with-pet"
 VENV="$PROJECT_DIR/.venv/bin/activate"
-SERVER="http://10.56.130.242:8000"
+SERVER="http://127.0.0.1:8000"
 ROOM="TEST_ROOM"
 
 # 가상환경 활성화
