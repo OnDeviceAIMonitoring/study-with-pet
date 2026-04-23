@@ -132,9 +132,9 @@ class StudyFlowMixin:
         """캐릭터 선택 이후 개인/그룹 진입 분기 처리."""
         self.nav_state.selected_char = selected_id
         self._selected_char = selected_id  # 호환성
-        chars = load_characters(sort_by_last_accessed=False)
+        chars = load_characters(self.args.name, sort_by_last_accessed=False)
         if touch_character(chars, selected_id):
-            save_characters(chars)
+            save_characters(self.args.name, chars)
 
         self.start_camera()
 

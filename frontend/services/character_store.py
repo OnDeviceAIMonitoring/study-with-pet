@@ -4,14 +4,19 @@ This module keeps character metadata consistent:
 - id: unique identifier
 - created_at: creation timestamp (UTC ISO-8601)
 - last_accessed_at: latest access timestamp (UTC ISO-8601)
+
+계정(username)별로 별도 JSON 파일에 캐릭터를 저장한다.
+  frontend/data/characters_{username}.json
 """
 
 import json
+import os
+import re
 import uuid
 from datetime import datetime, timezone
 
 
-_CHARACTERS_FILE = "frontend/data/characters.json"
+_DATA_DIR = "frontend/data"
 
 
 def _now_iso():
@@ -71,14 +76,29 @@ def _normalize_character(raw, now_iso):
     return char, changed
 
 
-def _write_characters(chars):
-    with open(_CHARACTERS_FILE, "w", encoding="utf-8") as f:
+def _sanitize_username(username: str) -> str:
+    """파일명에 안전한 문자열로 변환"""
+    return re.sub(r'[^\w\-.]', '_', username or "default")
+
+
+def _characters_path(username: str) -> str:
+    """계정별 캐릭터 JSON 경로 반환"""
+    safe = _sanitize_username(username)
+    return os.path.join(_DATA_DIR, f"characters_{safe}.json")
+
+
+def _write_characters(chars, username: str):
+    path = _characters_path(username)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(chars, f, ensure_ascii=False, indent=2)
 
 
-def load_characters(sort_by_last_accessed=False):
+def load_characters(username: str, sort_by_last_accessed=False):
+    """계정별 캐릭터 목록을 로드"""
+    path = _characters_path(username)
     try:
-        with open(_CHARACTERS_FILE, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             chars = json.load(f)
     except Exception:
         chars = []
@@ -102,18 +122,19 @@ def load_characters(sort_by_last_accessed=False):
         )
 
     if changed:
-        _write_characters(normalized)
+        _write_characters(normalized, username)
 
     return normalized
 
 
-def save_characters(chars):
+def save_characters(username: str, chars):
+    """계정별 캐릭터 목록을 저장"""
     now_iso = _now_iso()
     normalized = []
     for raw in chars if isinstance(chars, list) else []:
         char, _ = _normalize_character(raw, now_iso)
         normalized.append(char)
-    _write_characters(normalized)
+    _write_characters(normalized, username)
 
 
 def find_character_index(chars, char_ref):

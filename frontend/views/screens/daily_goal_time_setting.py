@@ -185,17 +185,18 @@ class DailyGoalTimeSettingScreenMixin:
 
     def _load_daily_goal_character(self, parent):
         """선택된(또는 최근) 캐릭터의 happy 애니메이션을 로드"""
-        chars = load_characters(sort_by_last_accessed=True)
+        chars = load_characters(self.args.name, sort_by_last_accessed=True)
         if not chars:
             return
 
         char = chars[0]
-        name = char.get("name", "maltese")
+        # 에셋 디렉토리명은 breed(maltese, york 등)를 사용
+        breed = char.get("breed", "maltese")
         growth = char.get("growth", 0)
         stage = get_stage_name_from_growth(growth)
 
         anim_sets = load_character_animation_sets(
-            name, stage, target_w=160, anim_names=("happy",),
+            breed, stage, target_w=160, anim_names=("happy",),
         )
         frames = anim_sets.get("happy", [])
         if not frames:

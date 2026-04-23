@@ -6,7 +6,7 @@ Single source of truth:
 """
 
 STAGES = ("baby", "adult", "crown")
-STAGE_UNIT = 120
+STAGE_UNIT = 3
 
 
 def _to_growth(raw_growth):

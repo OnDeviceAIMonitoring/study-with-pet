@@ -104,6 +104,23 @@ class GroupStudyMixin:
         self._group_char_growth_label = ctk.CTkLabel(char_area, text="", font=self._make_font(10), text_color=self.theme["text_muted"])
         self._group_char_growth_label.pack(pady=(1, 0))
 
+        # 디버그 패널 토글 버튼
+        if not hasattr(self, '_debug_panel_visible'):
+            self._debug_panel_visible = True
+        self._grp_debug_toggle_btn = ctk.CTkButton(
+            char_area, text="Debug: ON" if self._debug_panel_visible else "Debug: OFF",
+            width=110, height=32,
+            font=self._make_font(12),
+            fg_color="#ffffff",
+            hover_color="#e0e0e0",
+            text_color="#333333",
+            border_width=1,
+            border_color="#000000",
+            corner_radius=4,
+            command=self._toggle_debug_panel_group,
+        )
+        self._grp_debug_toggle_btn.pack(pady=(6, 0))
+
         # 응원/경고 말풍선
         self._grp_bubble_frame = ctk.CTkFrame(
             frame, fg_color=self.theme["gray_hover"],
@@ -219,7 +236,7 @@ class GroupStudyMixin:
 
     def _show_group_congrats(self):
         self._group_congrats_label.configure(
-            text="🎉 축하합니다! 목표 시간을 모두 완료하였습니다! 🎉"
+            text="축하합니다! 목표 시간을 모두 완료하였습니다!"
         )
         self._group_congrats_label.place(relx=0.5, rely=0.4, anchor="center")
         self._group_congrats_label.lift()
@@ -415,6 +432,20 @@ class GroupStudyMixin:
                 self._group_goblin_visible = False
 
         self.root.after(200, self._group_goblin_anim_tick)
+
+    # ── 디버그 패널 토글 (단체) ─────────────────────────────
+
+    def _toggle_debug_panel_group(self):
+        self._debug_panel_visible = not self._debug_panel_visible
+        label = "Debug: ON" if self._debug_panel_visible else "Debug: OFF"
+        self._grp_debug_toggle_btn.configure(text=label)
+        # 개인 공부 버튼도 동기화
+        if hasattr(self, '_debug_toggle_btn'):
+            self._debug_toggle_btn.configure(text=label)
+        # off_task 폰 박스 표시도 연동
+        det = getattr(self, '_off_task_detector', None)
+        if det is not None:
+            det.cfg.setdefault("visualization", {})["draw_phone_boxes"] = self._debug_panel_visible
 
     def _grp_encourage_bubble_tick(self):
         """단체방 말풍선 표시/애니메이션 (200ms 틱)."""

@@ -10,7 +10,7 @@ from services.study_time import save_study_time
 class StudyGrowthMixin:
 
     def _resolve_character(self, char_ref):
-        chars = load_characters(sort_by_last_accessed=False)
+        chars = load_characters(self.args.name, sort_by_last_accessed=False)
         char_idx = find_character_index(chars, char_ref)
         if char_idx < 0:
             return None, -1, None
@@ -161,7 +161,7 @@ class StudyGrowthMixin:
 
         char["growth"] = growth
         chars[char_idx] = char
-        save_characters(chars)
+        save_characters(self.args.name, chars)
 
         if new_stage != old_stage:
             if callable(on_stage_changed):
